@@ -29,12 +29,13 @@ class InputData(ctypes.Structure):                                  #Input data 
 class Basic():
     def __init__(self, wavemode='O', solver='basic', frequency=3e10, 
                  density='default', b_field='default', x='default', y='default',
-                 antenna_pos='default', beam_waist='default', angle=0):
+                 antenna_pos='default', beam_waist='default', angle=0, 
+                 expected_reflection_distance='default'):
         self.data = InputData()
         self.__set_frequency(frequency)
         self.__set_frequency_dependence()
-
-        
+        self.__set_density_field(x=x, y=y, density=density)
+  
         
     def __set_frequency(self, frequency):
         self.data.f0 = frequency
@@ -55,7 +56,7 @@ class Basic():
         self.__set_wavelength()
         self.__set_dx()
         
-    def __set_density_field(self, density, x, y):
+    def __set_density_field(self, x, y, density):
         if isinstance(density, str):
             self.__make_default_density()
         elif isinstance(density, numpy.ndarray):
@@ -68,23 +69,30 @@ class Basic():
         self.ny = self.y_range // self.dx
         self.data.nx = self.nx
         self.data.ny = self.ny
-    
+            
     def __make_default_density(self):
         self.x_range = 0.1 # in m
         self.y_range = 0.1 # in m
         self.__set_spatail_resolutions()
+        
         
     def __fit_density_to_grid(self, x, y, density):
         self.x_range = x[-1] - x[0]
         self.y_range = y[-1] - y[0]
         self.__set_spatial_resolutions()
         
-        
     
     def update_frequency(self, frequency):
-        self.__set_frequency(frequency)
-        self.__set_frequency_dependence()
         pass
         
     def update_density(self, density, x, y):
+        pass
+    
+    def update_angle(self, angle):
+        pass
+    
+    def update_antenna(self, antenna):
+        pass
+    
+    def update_waist(self, waist):
         pass
