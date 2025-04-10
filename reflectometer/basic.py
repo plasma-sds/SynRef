@@ -90,6 +90,8 @@ class Basic():
         self.y_range = y[-1] - y[0]
         self.__set_spatial_resolutions()
         
+        
+        
     def __set_magnetic_field(self):
         pass
     
