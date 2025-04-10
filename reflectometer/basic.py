@@ -75,12 +75,23 @@ class Basic():
         self.y_range = 0.1 # in m
         self.__set_spatail_resolutions()
         
+        profile = numpy.zeros(self.nx)
+        profile[70:] = numpy.linspace(0, 3e19, num=(self.nx-70))
+        default_density = numpy.array([list(profile) for i in range(int(self.nx))])
+        
+        ne = (ctypes.POINTER(ctypes.c_double) * self.data.nx)()
+        for i in range(self.data.nx):
+            ne[i] = (ctypes.c_double * self.data.ny)()
+            for j in range(self.data.ny):
+                ne[i][j] = default_density[i,j]
         
     def __fit_density_to_grid(self, x, y, density):
         self.x_range = x[-1] - x[0]
         self.y_range = y[-1] - y[0]
         self.__set_spatial_resolutions()
         
+    def __set_magnetic_field(self):
+        pass
     
     def update_frequency(self, frequency):
         pass
