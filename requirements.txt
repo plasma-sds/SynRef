@@ -1,0 +1,7 @@
+scipy
+ctypes
+numpy
+h5py
+matplotlib
+lxml
+tables
