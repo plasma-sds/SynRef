@@ -36,6 +36,7 @@ class Basic():
         self.__set_frequency(frequency)
         self.__set_frequency_dependence()
         self.__set_density_field(x=x, y=y, density=density)
+        self.__set_magnetic_field(x=x, y=y, b_field=b_field)
   
         
     def __set_frequency(self, frequency):
@@ -103,7 +104,7 @@ class Basic():
                 ne[i][j] = density_interpolator(x_grid[i], y_grid[j])
         self.data.ne = ne      
         
-    def __set_magnetic_field(self):
+    def __set_magnetic_field(self, x, y, b_field):
         pass
     
     def update_frequency(self, frequency):
