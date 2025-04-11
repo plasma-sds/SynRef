@@ -105,6 +105,23 @@ class Basic():
         self.data.ne = ne      
         
     def __set_magnetic_field(self, x, y, b_field):
+        if isinstance(b_field, str):
+            self.__make_default_bfield()
+        elif isinstance(b_field, numpy.ndarray()):
+             self.__fit_bfield_to_grid(x=x, y=y, b_field=b_field)
+        else:
+            raise(ValueError('Expected a numpy ndarray data type. Input datatype does not match'))
+            
+            
+    def __make_default_bfield(self):
+        b0 = (ctypes.POINTER(ctypes.c_double) * self.data.nx)()  # Create an array of pointers (for each row)
+        for i in range(self.data.nx):
+            b0[i] = (ctypes.c_double * self.data.ny)()  # Create the row with ny elements
+            for j in range(self.data.ny):
+                b0[i][j] = 1.8
+        self.data.b0 = b0
+        
+    def __fit_bfield_to_grid(self, x, y, b_field):
         pass
     
     def update_frequency(self, frequency):
