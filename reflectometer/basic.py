@@ -8,6 +8,7 @@ Created on Thu Apr 10 14:51:15 2025
 import ctypes
 import numpy
 import scipy.constants as constant
+from scipy.interpolate import RegularGridInterpolator as rgi
 
 class InputData(ctypes.Structure):                                  #Input data structure for Basic FW2D
     _fields_ = [
@@ -84,13 +85,23 @@ class Basic():
             ne[i] = (ctypes.c_double * self.data.ny)()
             for j in range(self.data.ny):
                 ne[i][j] = default_density[i,j]
+        self.data.ne = ne
         
     def __fit_density_to_grid(self, x, y, density):
         self.x_range = x[-1] - x[0]
         self.y_range = y[-1] - y[0]
         self.__set_spatial_resolutions()
         
-        
+        density_interpolator = rgi((x, y), density, method="cubic", fill_value=None)
+        x_grid = x[0] + numpy.arange(int(self.nx))*self.dx
+        y_grid = y[0] + numpy.arange(int(self.ny))*self.dx
+
+        ne = (ctypes.POINTER(ctypes.c_double) * self.data.nx)()
+        for i in range(self.data.nx):
+            ne[i] = (ctypes.c_double * self.data.ny)()
+            for j in range(self.data.ny):
+                ne[i][j] = density_interpolator(x_grid[i], y_grid[j])
+        self.data.ne = ne      
         
     def __set_magnetic_field(self):
         pass
