@@ -118,7 +118,7 @@ class Basic():
         for i in range(self.data.nx):
             b0[i] = (ctypes.c_double * self.data.ny)()  # Create the row with ny elements
             for j in range(self.data.ny):
-                b0[i][j] = 1.8
+                b0[i][j] = 2.5
         self.data.b0 = b0
         
     def __fit_bfield_to_grid(self, x, y, b_field):
