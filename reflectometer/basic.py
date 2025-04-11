@@ -31,7 +31,7 @@ class Basic():
     def __init__(self, wavemode='O', solver='basic', frequency=3e10, 
                  density='default', b_field='default', x='default', y='default',
                  antenna_pos='default', beam_waist='default', angle=0, 
-                 expected_reflection_distance='default'):
+                 reflection_distance='default'):
         
         
         self.data = InputData()
@@ -40,6 +40,7 @@ class Basic():
         self.__set_density_field(x=x, y=y, density=density)
         self.__set_magnetic_field(x=x, y=y, b_field=b_field)
         self.__set_angle_antenna(angle=angle)
+        self.__set_simulation_timesteps(reflection_distance=reflection_distance)
   
         
     def __set_frequency(self, frequency):
@@ -139,6 +140,18 @@ class Basic():
     def __set_angle_antenna(self, angle):
         self.angle = angle
         self.data.angle = angle
+        
+    def __set_simulation_timesteps(self, reflection_distance):
+        if isinstance(reflection_distance, str):
+            time = 2*numpy.cos(numpy.radians(self.angle))*self.x_range / constant.c
+        else:
+            time = 2*numpy.cos(numpy.radians(self.angle))*reflection_distance / constant.c
+        
+        self.__set_timesteps(simulation_time=time*1.05)
+            
+    def __set_timesteps(self, simulation_time):
+        self.nt = simulation_time // self.dt
+        self.data.nt = self.nt
     
     def update_frequency(self, frequency):
         pass
