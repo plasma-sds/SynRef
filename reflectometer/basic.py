@@ -101,7 +101,7 @@ class Basic():
         for i in range(self.data.nx):
             ne[i] = (ctypes.c_double * self.data.ny)()
             for j in range(self.data.ny):
-                ne[i][j] = density_interpolator(x_grid[i], y_grid[j])
+                ne[i][j] = density_interpolator((x_grid[i], y_grid[j]))
         self.data.ne = ne      
         
     def __set_magnetic_field(self, x, y, b_field):
@@ -122,7 +122,16 @@ class Basic():
         self.data.b0 = b0
         
     def __fit_bfield_to_grid(self, x, y, b_field):
-        pass
+        bfield_interpolator = rgi((x, y), b_field, method="cubic", fill_value=None)
+        x_grid = x[0] + numpy.arange(int(self.nx))*self.dx
+        y_grid = y[0] + numpy.arange(int(self.ny))*self.dx
+        
+        b0 = (ctypes.POINTER(ctypes.c_double) * self.data.nx)()  # Create an array of pointers (for each row)
+        for i in range(self.data.nx):
+            b0[i] = (ctypes.c_double * self.data.ny)()  # Create the row with ny elements
+            for j in range(self.data.ny):
+                b0[i][j] = bfield_interpolator((x_grid[i], y_grid[j]))
+        self.data.b0 = b0
     
     def update_frequency(self, frequency):
         pass
