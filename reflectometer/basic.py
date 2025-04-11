@@ -32,11 +32,14 @@ class Basic():
                  density='default', b_field='default', x='default', y='default',
                  antenna_pos='default', beam_waist='default', angle=0, 
                  expected_reflection_distance='default'):
+        
+        
         self.data = InputData()
         self.__set_frequency(frequency)
         self.__set_frequency_dependence()
         self.__set_density_field(x=x, y=y, density=density)
         self.__set_magnetic_field(x=x, y=y, b_field=b_field)
+        self.__set_angle_antenna(angle=angle)
   
         
     def __set_frequency(self, frequency):
@@ -132,6 +135,10 @@ class Basic():
             for j in range(self.data.ny):
                 b0[i][j] = bfield_interpolator((x_grid[i], y_grid[j]))
         self.data.b0 = b0
+        
+    def __set_angle_antenna(self, angle):
+        self.angle = angle
+        self.data.angle = angle
     
     def update_frequency(self, frequency):
         pass
