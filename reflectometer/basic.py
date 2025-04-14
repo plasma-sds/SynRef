@@ -58,7 +58,7 @@ class Basic():
         self.wavelength = constant.c / self.frequency
                 
     def __set_dx(self):
-        self.dx = self.wave_length / 20
+        self.dx = self.wavelength / 20
         self.data.dx = self.dx 
         
     def __set_frequency_dependence(self):
