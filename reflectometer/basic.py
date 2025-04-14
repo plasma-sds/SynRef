@@ -44,9 +44,10 @@ class Basic():
         self.__set_simulation_timesteps(reflection_distance=reflection_distance)
         self.__set_beam_waist(waist=beam_waist)
         self.__set_antenna_pos(antenna_pos=antenna_pos)
+        self.__set_solver(wavemode=wavemode, solver=solver)
+        self.__set_outputdata(solver=solver)
         
   
-        
     def __set_frequency(self, frequency):
         self.data.f0 = frequency
         self.frequency = frequency
@@ -201,8 +202,16 @@ class Basic():
             raise ValueError('The requested solver type is not supported. Please consult documentation.')
    
         self.fw2d_path = os.path.join(os.path.dirname(__file__), '..', 
-                                      'fw2d', mode_path+solver_path+'.dll')       
-   
+                                      'fw2d', mode_path+solver_path+'.dll')
+        
+    def __set_outputdata(self, solver):
+        antenna_amplitude = (ctypes.c_double * self.data.nx)()  # 1D array for amplitudes
+        antenna_phase = (ctypes.c_double * self.data.nx)()  # 1D array for phases
+        for index in range(self.data.nx):
+            antenna_amplitude[index] = 1.0
+            antenna_phase[index] = 0.0
+        self.data.ampl_ant = antenna_amplitude
+        self.data.fase_ant = antenna_phase
     
     def update_frequency(self, frequency):
         pass
