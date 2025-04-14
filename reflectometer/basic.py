@@ -154,7 +154,7 @@ class Basic():
         self.__set_timesteps(simulation_time=time*1.05)
             
     def __set_timesteps(self, simulation_time):
-        self.nt = simulation_time // self.dt
+        self.nt = int(simulation_time // self.dt)
         self.data.nt = self.nt
         
     def __set_beam_waist(self, waist):
