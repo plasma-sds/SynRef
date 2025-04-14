@@ -235,7 +235,10 @@ class Basic():
         pass
     
     def get_axis(self):
-        pass
+        x = numpy.arange(self.data.nx)*self.data.dx
+        y = numpy.arange(self.data.ny)*self.data.dx
+        time = numpy.arange(self.data.nt)*self.dt
+        return x, y, time
     
     def plot_density(self):
         pass
