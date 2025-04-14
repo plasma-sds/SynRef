@@ -75,15 +75,15 @@ class Basic():
             raise(ValueError('Expected a numpy ndarray data type. Input datatype does not match'))            
         
     def __set_spatial_resolutions(self):
-        self.nx = (self.x[-1] - self.x[0]) // self.dx
-        self.ny = (self.y[-1] - self.y[0]) // self.dx
+        self.nx = int((self.x[-1] - self.x[0]) // self.dx)
+        self.ny = int((self.y[-1] - self.y[0]) // self.dx)
         self.data.nx = self.nx
         self.data.ny = self.ny
             
     def __make_default_density(self):
         self.x = numpy.arange(0,100,1) * 0.001# in m
         self.y = numpy.arange(0,100,1) * 0.001# in m
-        self.__set_spatail_resolutions()
+        self.__set_spatial_resolutions()
         
         profile = numpy.zeros(self.nx)
         profile[50:] = numpy.linspace(0, 3e19, num=(self.nx-50))
@@ -147,7 +147,7 @@ class Basic():
         
     def __set_simulation_timesteps(self, reflection_distance):
         if isinstance(reflection_distance, str):
-            time = 2*numpy.cos(numpy.radians(self.angle))*self.x_range / constant.c
+            time = 2*numpy.cos(numpy.radians(self.angle))*(self.x[-1]-self.x[0]) / constant.c
         else:
             time = 2*numpy.cos(numpy.radians(self.angle))*reflection_distance / constant.c
         
