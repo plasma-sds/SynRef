@@ -81,8 +81,8 @@ class Basic():
         self.data.ny = self.ny
             
     def __make_default_density(self):
-        self.x = numpy.arrange(0,100,1) * 0.001# in m
-        self.y = numpy.arrange(0,100,1) * 0.001# in m
+        self.x = numpy.arange(0,100,1) * 0.001# in m
+        self.y = numpy.arange(0,100,1) * 0.001# in m
         self.__set_spatail_resolutions()
         
         profile = numpy.zeros(self.nx)
