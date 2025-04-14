@@ -227,3 +227,15 @@ class Basic():
     
     def update_waist(self, waist):
         pass
+    
+    def get_antenna_output(self):
+        return self.data.ampl_ant, self.data.fase_ant
+    
+    def get_density_field(self):
+        pass
+    
+    def get_axis(self):
+        pass
+    
+    def plot_density(self):
+        pass
