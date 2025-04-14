@@ -169,7 +169,7 @@ class Basic():
             self.antenna_pos = 0.05 #in cm
         else:
             self.antenna_pos = antenna_pos
-        self.data.yante = int(self.ny - (antenna_pos - self.y[0]))
+        self.data.yante = self.ny - int((antenna_pos - self.y[0])//self.dx)
         
     def __set_solver(self, wavemode, solver):
         self.__set_solver_path(wavemode=wavemode, solver=solver)
