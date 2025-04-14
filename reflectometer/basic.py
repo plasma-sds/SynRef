@@ -162,7 +162,7 @@ class Basic():
             self.beam_waist_si = 0.03 # in cm
         else:
             self.beam_waist_si = waist
-        self.data.waist = self.beam_waist_si // self.dx
+        self.data.waist = int(self.beam_waist_si // self.dx)
     
     def __set_antenna_pos(self, antenna_pos):
         if isinstance(antenna_pos, str):
