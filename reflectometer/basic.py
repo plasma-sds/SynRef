@@ -41,6 +41,8 @@ class Basic():
         self.__set_magnetic_field(x=x, y=y, b_field=b_field)
         self.__set_angle_antenna(angle=angle)
         self.__set_simulation_timesteps(reflection_distance=reflection_distance)
+        self.__set_beam_waist(waist=beam_waist)
+        
   
         
     def __set_frequency(self, frequency):
@@ -154,8 +156,11 @@ class Basic():
         self.data.nt = self.nt
         
     def __set_beam_waist(self, waist):
-        self.beam_waist_si = waist
-        self.data.waist = waist // self.dx
+        if isinstance(waist, str):
+            self.beam_waist_si = 0.03 # in cm
+        else:
+            self.beam_waist_si = waist
+        self.data.waist = self.beam_waist_si // self.dx
     
     def __set_antenna_pos(self, antenna_pos):
         self.antenna_pos = antenna_pos
