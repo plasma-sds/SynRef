@@ -236,9 +236,9 @@ class Basic():
         field = numpy.zeros((self.data.nx, self.data.ny))
         for x_index in range(self.data.nx):
             for y_index in range(self.data.ny):
-                if field == 'density':
+                if kind == 'density':
                     field[x_index, y_index] = self.data.ne[x_index][y_index]
-                elif field == 'magnetic':
+                elif kind == 'magnetic':
                     field[x_index, y_index] = self.data.b0[x_index][y_index]
                 else:
                     raise ValueError('The requested output type is not supported. Supported types are: <density> or <magnetic>')
@@ -258,8 +258,8 @@ class Basic():
         ax.set_title("Density field for "+title, fontsize=14, fontweight = 'bold')
         ax.tick_params(axis='both', labelsize= 12)
         ax.set_aspect('equal', adjustable='box')
-        ax.set_xlabel('Distance along the beam [cm]', fontsize=14, fontweight = 'bold')
-        ax.set_ylabel('Distance from slab center [cm]', fontsize=14, fontweight = 'bold')
+        ax.set_xlabel('X axis [m]', fontsize=14, fontweight = 'bold')
+        ax.set_ylabel('Y axis [m]', fontsize=14, fontweight = 'bold')
         
         col = fig.colorbar(dens, ax=ax)
         col.ax.tick_params(labelsize= 12, which='both')
