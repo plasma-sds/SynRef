@@ -71,18 +71,18 @@ class Basic():
             raise(ValueError('Expected a numpy ndarray data type. Input datatype does not match'))            
         
     def __set_spatial_resolutions(self):
-        self.nx = self.x_range // self.dx
-        self.ny = self.y_range // self.dx
+        self.nx = (self.x[-1] - self.x[0]) // self.dx
+        self.ny = (self.y[-1] - self.y[0]) // self.dx
         self.data.nx = self.nx
         self.data.ny = self.ny
             
     def __make_default_density(self):
-        self.x_range = 0.1 # in m
-        self.y_range = 0.1 # in m
+        self.x = numpy.arrange(0,100,1) * 0.001# in m
+        self.y = numpy.arrange(0,100,1) * 0.001# in m
         self.__set_spatail_resolutions()
         
         profile = numpy.zeros(self.nx)
-        profile[70:] = numpy.linspace(0, 3e19, num=(self.nx-70))
+        profile[50:] = numpy.linspace(0, 3e19, num=(self.nx-50))
         default_density = numpy.array([list(profile) for i in range(int(self.nx))])
         
         ne = (ctypes.POINTER(ctypes.c_double) * self.data.nx)()
@@ -93,8 +93,8 @@ class Basic():
         self.data.ne = ne
         
     def __fit_density_to_grid(self, x, y, density):
-        self.x_range = x[-1] - x[0]
-        self.y_range = y[-1] - y[0]
+        self.x
+        self.y
         self.__set_spatial_resolutions()
         
         density_interpolator = rgi((x, y), density, method="cubic", fill_value=None)
@@ -152,6 +152,14 @@ class Basic():
     def __set_timesteps(self, simulation_time):
         self.nt = simulation_time // self.dt
         self.data.nt = self.nt
+        
+    def __set_beam_waist(self, waist):
+        self.beam_waist_si = waist
+        self.data.waist = waist // self.dx
+    
+    def __set_antenna_pos(self, antenna_pos):
+        self.antenna_pos = antenna_pos
+        self.data.yante = int(self.ny - (antenna_pos - self.y[0])) 
     
     def update_frequency(self, frequency):
         pass
