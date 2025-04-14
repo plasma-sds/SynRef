@@ -42,6 +42,7 @@ class Basic():
         self.__set_angle_antenna(angle=angle)
         self.__set_simulation_timesteps(reflection_distance=reflection_distance)
         self.__set_beam_waist(waist=beam_waist)
+        self.__set_antenna_pos(antenna_pos=antenna_pos)
         
   
         
@@ -163,7 +164,10 @@ class Basic():
         self.data.waist = self.beam_waist_si // self.dx
     
     def __set_antenna_pos(self, antenna_pos):
-        self.antenna_pos = antenna_pos
+        if isinstance(antenna_pos, str):
+            self.antenna_pos = 0.05 #in cm
+        else:
+            self.antenna_pos = antenna_pos
         self.data.yante = int(self.ny - (antenna_pos - self.y[0])) 
     
     def update_frequency(self, frequency):
