@@ -231,8 +231,17 @@ class Basic():
     def get_antenna_output(self):
         return self.data.ampl_ant, self.data.fase_ant
     
-    def get_density_field(self):
-        pass
+    def get_input_fields(self, kind='density'):
+        field = numpy.zeros((self.data.nx, self.data.ny))
+        for x_index in range(self.data.nx):
+            for y_index in range(self.data.ny):
+                if field == 'density':
+                    field[x_index, y_index] = self.data.ne[x_index][y_index]
+                elif field == 'magnetic':
+                    field[x_index, y_index] = self.data.b0[x_index][y_index]
+                else:
+                    raise ValueError('The requested output type is not supported. Supported types are: <density> or <magnetic>')
+        return field
     
     def get_axis(self):
         x = numpy.arange(self.data.nx)*self.data.dx
