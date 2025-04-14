@@ -9,6 +9,7 @@ import os
 import ctypes
 import numpy
 import scipy.constants as constant
+import matplotlib.pyplot as plt
 from scipy.interpolate import RegularGridInterpolator as rgi
 
 class InputData(ctypes.Structure):                                  #Input data structure for Basic FW2D
@@ -244,10 +245,27 @@ class Basic():
         return field
     
     def get_axis(self):
-        x = numpy.arange(self.data.nx)*self.data.dx
-        y = numpy.arange(self.data.ny)*self.data.dx
+        x = self.x[0] + numpy.arange(self.data.nx)*self.dx
+        y = self.y[0] + numpy.arange(self.data.ny)*self.dx
         time = numpy.arange(self.data.nt)*self.dt
         return x, y, time
     
-    def plot_density(self):
-        pass
+    def plot_density(self, title=''):
+        x, y, time = self.get_axis()
+        density = self.get_input_fields()
+        fig, ax = plt.subplots(figsize=(15,4.5))
+        dens = ax.contourf(x, y, density, levels=200, cmap='plasma')
+        ax.set_title("Density field for "+title, fontsize=14, fontweight = 'bold')
+        ax.tick_params(axis='both', labelsize= 12)
+        ax.set_aspect('equal', adjustable='box')
+        ax.set_xlabel('Distance along the beam [cm]', fontsize=14, fontweight = 'bold')
+        ax.set_ylabel('Distance from slab center [cm]', fontsize=14, fontweight = 'bold')
+        
+        col = fig.colorbar(dens, ax=ax)
+        col.ax.tick_params(labelsize= 12, which='both')
+        col.ax.set_ylabel('Density [m-3]',fontsize=12, fontweight = 'bold')
+        
+        plt.show()
+        
+        
+        
