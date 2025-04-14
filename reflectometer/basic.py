@@ -5,6 +5,7 @@ Created on Thu Apr 10 14:51:15 2025
 @author: asztalos
 """
 
+import os
 import ctypes
 import numpy
 import scipy.constants as constant
@@ -168,7 +169,40 @@ class Basic():
             self.antenna_pos = 0.05 #in cm
         else:
             self.antenna_pos = antenna_pos
-        self.data.yante = int(self.ny - (antenna_pos - self.y[0])) 
+        self.data.yante = int(self.ny - (antenna_pos - self.y[0]))
+        
+    def __set_solver(self, wavemode, solver):
+        self.__set_solver_path(wavemode=wavemode, solver=solver)
+        self.fw2d = ctypes.CDLL(self.fw2d_path)
+        self.fw2d.maxwell_2d_omode.argtypes = [ctypes.POINTER(InputData)]
+        self.fw2d.maxwell_2d_omode.restype = ctypes.c_int
+        
+    def __set_solver_path(self, wavemode, solver):
+        if not isinstance(wavemode, str):
+            raise TypeError('The expected type for the wavemode input is str.')
+        if wavemode == "O":
+            self.wavemode = wavemode
+            mode_path='maxwell_2d_omode'
+        else:
+            raise ValueError('The requested wave type is not supported. The class is set up to support X or O mode waves.')
+            
+        if not isinstance(solver, str):
+            raise TypeError('The expected type for the solver input is str.')
+        if solver == 'basic':
+            self.solver=solver
+            solver_path = ''
+        elif solver == 'ez_evo':
+            pass
+        elif solver == 'multi_ant':
+            pass
+        elif solver == 'multi_evo':
+            pass
+        else:
+            raise ValueError('The requested solver type is not supported. Please consult documentation.')
+   
+        self.fw2d_path = os.path.join(os.path.dirname(__file__), '..', 
+                                      'fw2d', mode_path+solver_path+'.dll')       
+   
     
     def update_frequency(self, frequency):
         pass
