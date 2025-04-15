@@ -224,7 +224,7 @@ class Basic():
         pass
     
     def update_antenna(self, antenna):
-        pass
+        self.__set_antenna_pos(antenna_pos=antenna)
     
     def update_waist(self, waist):
         self.__set_beam_waist(waist=waist)
