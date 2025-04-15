@@ -149,10 +149,10 @@ class Basic():
         
     def __set_simulation_timesteps(self, reflection_distance):
         if isinstance(reflection_distance, str):
-            time = 2*numpy.cos(numpy.radians(self.angle))*(self.x[-1]-self.x[0]) / constant.c
+            self.reflection_distance = (self.x[-1]-self.x[0])
         else:
-            time = 2*numpy.cos(numpy.radians(self.angle))*reflection_distance / constant.c
-        
+            self.reflection_distance = reflection_distance            
+        time = 2*numpy.cos(numpy.radians(self.angle))*self.reflection_distance / constant.c
         self.__set_timesteps(simulation_time=time*1.05)
             
     def __set_timesteps(self, simulation_time):
@@ -221,7 +221,8 @@ class Basic():
         pass
     
     def update_angle(self, angle):
-        pass
+        self.__set_angle_antenna(angle=angle)
+        self.__set_simulation_timesteps(reflection_distance=self.reflection_distance)
     
     def update_antenna(self, antenna):
         self.__set_antenna_pos(antenna_pos=antenna)
