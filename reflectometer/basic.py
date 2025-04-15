@@ -229,6 +229,9 @@ class Basic():
     def update_waist(self, waist):
         pass
     
+    def update_solver(self, wavemode, solver):
+        self.__set_solver(wavemode=wavemode, solver=solver)
+    
     def get_antenna_output(self):
         return self.data.ampl_ant, self.data.fase_ant
     
