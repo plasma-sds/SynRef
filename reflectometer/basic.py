@@ -227,7 +227,7 @@ class Basic():
         pass
     
     def update_waist(self, waist):
-        pass
+        self.__set_beam_waist(waist=waist)
     
     def update_solver(self, wavemode, solver):
         self.__set_solver(wavemode=wavemode, solver=solver)
@@ -269,6 +269,3 @@ class Basic():
         col.ax.set_ylabel('Density [m-3]',fontsize=12, fontweight = 'bold')
         
         plt.show()
-        
-        
-        
