@@ -215,7 +215,18 @@ class Basic():
         self.data.fase_ant = antenna_phase
     
     def update_frequency(self, frequency):
-        pass
+        x_old, y_old, time_old = self.get_axis()
+        magnetic = self.get_input_fields(kind='magnetic')
+        density = self.get_input_fields(kind='density')
+        
+        self.__set_frequency(frequency=frequency)
+        self.__set_frequency_dependence()
+        self.__set_density_field(x=x_old, y=y_old, density=density)
+        self.__set_magnetic_field(x=x_old, y=y_old, b_field=magnetic)
+        self.__set_angle_antenna(angle=self.angle)
+        self.__set_simulation_timesteps(reflection_distance=self.reflection_distance)
+        self.__set_beam_waist(waist=self.beam_waist_si)
+        self.__set_antenna_pos(antenna_pos=self.antenna_pos)        
         
     def update_density(self, density, x, y, reflection_distance='default'):
         x_old, y_old, time_old = self.get_axis()
