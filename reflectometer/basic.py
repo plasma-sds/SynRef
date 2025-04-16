@@ -152,7 +152,7 @@ class Basic():
             self.reflection_distance = (self.x[-1]-self.x[0])
         else:
             self.reflection_distance = reflection_distance            
-        time = 2*numpy.cos(numpy.radians(self.angle))*self.reflection_distance / constant.c
+        time = 2*self.reflection_distance / numpy.cos(numpy.radians(self.angle)) / constant.c
         self.__set_timesteps(simulation_time=time*1.05)
             
     def __set_timesteps(self, simulation_time):
