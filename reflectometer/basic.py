@@ -77,8 +77,8 @@ class Basic():
             raise(ValueError('Expected a numpy ndarray data type. Input datatype does not match'))            
         
     def __set_spatial_resolutions(self):
-        self.nx = int((self.x[-1] - self.x[0]) // self.dx)
-        self.ny = int((self.y[-1] - self.y[0]) // self.dx)
+        self.nx = int(numpy.abs((self.x[-1] - self.x[0]) // self.dx))
+        self.ny = int(numpy.abs((self.y[-1] - self.y[0]) // self.dx))
         self.data.nx = self.nx
         self.data.ny = self.ny
             
@@ -103,13 +103,13 @@ class Basic():
         self.y = y
         self.__set_spatial_resolutions()
         
-        density_interpolator = rgi((x, y), density, method="cubic", fill_value=None)
+        density_interpolator = rgi((x, y), density.T, bounds_error=False, fill_value=None)
         x_grid = x[0] + numpy.arange(int(self.nx))*self.dx
         y_grid = y[0] + numpy.arange(int(self.ny))*self.dx
 
         ne = (ctypes.POINTER(ctypes.c_double) * self.data.nx)()
-        for i in range(self.data.nx):
-            ne[i] = (ctypes.c_double * self.data.ny)()
+        for i in range(self.data.ny):
+            ne[i] = (ctypes.c_double * self.data.nx)()
             for j in range(self.data.ny):
                 ne[i][j] = density_interpolator((x_grid[i], y_grid[j]))
         self.data.ne = ne      
@@ -117,7 +117,7 @@ class Basic():
     def __set_magnetic_field(self, x, y, b_field):
         if isinstance(b_field, str):
             self.__make_default_bfield()
-        elif isinstance(b_field, numpy.ndarray()):
+        elif isinstance(b_field, numpy.ndarray):
              self.__fit_bfield_to_grid(x=x, y=y, b_field=b_field)
         else:
             raise(ValueError('Expected a numpy ndarray data type. Input datatype does not match'))
@@ -132,7 +132,7 @@ class Basic():
         self.data.b0 = b0
         
     def __fit_bfield_to_grid(self, x, y, b_field):
-        bfield_interpolator = rgi((x, y), b_field, method="cubic", fill_value=None)
+        bfield_interpolator = rgi((x, y), b_field, bounds_error=False, fill_value=None)
         x_grid = x[0] + numpy.arange(int(self.nx))*self.dx
         y_grid = y[0] + numpy.arange(int(self.ny))*self.dx
         
@@ -235,7 +235,7 @@ class Basic():
         self.__set_density_field(x=x, y=y, density=density)
         self.__set_magnetic_field(x=x_old, y=y_old, b_field=magnetic)
         
-        self.__set_angle_antenna(anfle=self.angle)
+        self.__set_angle_antenna(angle=self.angle)
         self.__set_simulation_timesteps(reflection_distance=reflection_distance)
         self.__set_beam_waist(waist=self.beam_waist_si)
         self.__set_antenna_pos(antenna_pos=self.antenna_pos)
@@ -278,7 +278,10 @@ class Basic():
         x, y, time = self.get_axis()
         density = self.get_input_fields()
         fig, ax = plt.subplots(figsize=(15,4.5))
-        dens = ax.contourf(x, y, density, levels=200, cmap='plasma')
+        try:
+            dens = ax.contourf(x, y, density, levels=200, cmap='plasma')
+        except TypeError:
+            dens = ax.contourf(x, y, density.T, levels=200, cmap='plasma')
         ax.set_title("Density field for "+title, fontsize=14, fontweight = 'bold')
         ax.tick_params(axis='both', labelsize= 12)
         ax.set_aspect('equal', adjustable='box')
