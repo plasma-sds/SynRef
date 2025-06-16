@@ -10,7 +10,7 @@ import ctypes
 import numpy
 import scipy.constants as constant
 import matplotlib.pyplot as plt
-from scipy.interpolate import RegularGridInterpolator as rgi
+from scipy.interpolate import RectBivariateSpline
 
 class InputData(ctypes.Structure):                                  #Input data structure for Basic FW2D
     _fields_ = [
@@ -103,15 +103,16 @@ class Basic():
         self.y = y
         self.__set_spatial_resolutions()
         
-        density_interpolator = rgi((x, y), density.T, bounds_error=False, fill_value=None)
         x_grid = x[0] + numpy.arange(int(self.nx))*self.dx
         y_grid = y[0] + numpy.arange(int(self.ny))*self.dx
+        interp = RectBivariateSpline(x, y, density)
+        interp_density = interp(x_grid, y_grid)
 
         ne = (ctypes.POINTER(ctypes.c_double) * self.data.nx)()
-        for i in range(self.data.ny):
-            ne[i] = (ctypes.c_double * self.data.nx)()
+        for i in range(self.data.nx):
+            ne[i] = (ctypes.c_double * self.data.ny)()
             for j in range(self.data.ny):
-                ne[i][j] = density_interpolator((x_grid[i], y_grid[j]))
+                ne[i][j] = interp_density[i,j]
         self.data.ne = ne      
         
     def __set_magnetic_field(self, x, y, b_field):
@@ -132,15 +133,16 @@ class Basic():
         self.data.b0 = b0
         
     def __fit_bfield_to_grid(self, x, y, b_field):
-        bfield_interpolator = rgi((x, y), b_field, bounds_error=False, fill_value=None)
         x_grid = x[0] + numpy.arange(int(self.nx))*self.dx
         y_grid = y[0] + numpy.arange(int(self.ny))*self.dx
+        interp = RectBivariateSpline(x, y, b_field)
+        interp_bfield = interp(x_grid, y_grid)
         
         b0 = (ctypes.POINTER(ctypes.c_double) * self.data.nx)()  # Create an array of pointers (for each row)
         for i in range(self.data.nx):
             b0[i] = (ctypes.c_double * self.data.ny)()  # Create the row with ny elements
             for j in range(self.data.ny):
-                b0[i][j] = bfield_interpolator((x_grid[i], y_grid[j]))
+                b0[i][j] = interp_bfield[i,j]
         self.data.b0 = b0
         
     def __set_angle_antenna(self, angle):
