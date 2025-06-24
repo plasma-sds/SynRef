@@ -126,10 +126,10 @@ class Basic():
             
     def __make_default_bfield(self):
         b0 = (ctypes.POINTER(ctypes.c_double) * self.data.ny)()  # Create an array of pointers (for each row)
-        for i in range(self.data.ny):
-            b0[i] = (ctypes.c_double * self.data.nx)()  # Create the row with ny elements
-            for j in range(self.data.nx):
-                b0[i][j] = 2.5
+        for j in range(self.data.ny):
+            b0[j] = (ctypes.c_double * self.data.nx)()  # Create the row with ny elements
+            for i in range(self.data.nx):
+                b0[j][i] = 2.5
         self.data.b0 = b0
         
     def __fit_bfield_to_grid(self, x, y, b_field):
