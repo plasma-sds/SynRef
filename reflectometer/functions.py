@@ -19,15 +19,21 @@ def get_Omode_cutoff_density(frequency):
     At cut-off: ω = ω_pe, therefore: n_e = (ω^2 * m_e * ε_0) / e^2
     
     Args:
-        frequency (float): Wave frequency in Hz
+        frequency (float or numpy.ndarray): Wave frequency in Hz
         
     Returns:
-        float: Cut-off density in m^-3
+        float or numpy.ndarray: Cut-off density in m^-3
         
     Example:
         >>> get_Omode_cutoff_density(3e10)  # 30 GHz
         1.115e19  # m^-3
+        >>> get_Omode_cutoff_density(np.array([3e10, 4e10]))  # 30, 40 GHz
+        array([1.115e19, 1.982e19])  # m^-3
     """
+    # Convert to numpy array if scalar
+    if not isinstance(frequency, np.ndarray):
+        frequency = np.array(frequency)
+    
     # Plasma frequency: ω_pe = sqrt(n_e * e^2 / (m_e * ε_0))
     # At cut-off: ω = ω_pe
     # Therefore: n_e = (ω^2 * m_e * ε_0) / e^2
@@ -41,7 +47,8 @@ def get_Omode_cutoff_density(frequency):
     omega = 2 * np.pi * frequency  # Angular frequency
     cutoff_density = (omega**2 * m_e * epsilon_0) / (e**2)
     
-    return cutoff_density
+    # Return scalar if input was scalar
+    return cutoff_density.item() if cutoff_density.size == 1 else cutoff_density
 
 
 def get_Xmode_cutoff_density(frequency, bfield):
@@ -55,8 +62,8 @@ def get_Xmode_cutoff_density(frequency, bfield):
     This function returns both cut-off densities.
     
     Args:
-        frequency (float): Wave frequency in Hz
-        bfield (float): Magnetic field strength in Tesla
+        frequency (float or numpy.ndarray): Wave frequency in Hz
+        bfield (float or numpy.ndarray): Magnetic field strength in Tesla
         
     Returns:
         tuple: (lower_cutoff_density, upper_cutoff_density) in m^-3
@@ -65,6 +72,12 @@ def get_Xmode_cutoff_density(frequency, bfield):
         >>> get_Xmode_cutoff_density(3e10, 2.5)  # 30 GHz, 2.5 T
         (1.115e19, 1.115e19)  # m^-3 (lower and upper cut-offs)
     """
+    # Convert to numpy arrays if scalars
+    if not isinstance(frequency, np.ndarray):
+        frequency = np.array(frequency)
+    if not isinstance(bfield, np.ndarray):
+        bfield = np.array(bfield)
+    
     # Upper cut-off density (same as O-mode)
     upper_cutoff_density = get_Omode_cutoff_density(frequency)
     
@@ -94,14 +107,16 @@ def get_Omode_cutoff_frequency(density):
     f_pe = sqrt(n_e * e^2 / (m_e * ε_0)) / (2*π)
     
     Args:
-        density (float): Plasma density in m^-3
+        density (float or numpy.ndarray): Plasma density in m^-3
         
     Returns:
-        float: Cut-off frequency in Hz
+        float or numpy.ndarray: Cut-off frequency in Hz
         
     Example:
         >>> get_Omode_cutoff_frequency(1e19)  # 1e19 m^-3
         2.84e10  # Hz (28.4 GHz)
+        >>> get_Omode_cutoff_frequency(np.array([1e19, 2e19]))  # 1e19, 2e19 m^-3
+        array([2.84e10, 4.02e10])  # Hz
     """
     return get_plasma_frequency(density)
 
@@ -115,8 +130,8 @@ def get_Xmode_cutoff_frequency(density, bfield):
     2. Lower cut-off: f = (f_ce + sqrt(f_ce^2 + 4*f_pe^2)) / 2
     
     Args:
-        density (float): Plasma density in m^-3
-        bfield (float): Magnetic field strength in Tesla
+        density (float or numpy.ndarray): Plasma density in m^-3
+        bfield (float or numpy.ndarray): Magnetic field strength in Tesla
         
     Returns:
         tuple: (lower_cutoff_freq, upper_cutoff_freq) in Hz
@@ -125,6 +140,12 @@ def get_Xmode_cutoff_frequency(density, bfield):
         >>> get_Xmode_cutoff_frequency(1e19, 2.5)  # 1e19 m^-3, 2.5 T
         (2.84e10, 2.84e10)  # Hz (lower and upper cut-offs)
     """
+    # Convert to numpy arrays if scalars
+    if not isinstance(density, np.ndarray):
+        density = np.array(density)
+    if not isinstance(bfield, np.ndarray):
+        bfield = np.array(bfield)
+    
     # Calculate plasma frequency (upper cut-off)
     f_pe = get_plasma_frequency(density)
     
@@ -148,15 +169,21 @@ def get_plasma_frequency(density):
     in a plasma: f_pe = sqrt(n_e * e^2 / (m_e * ε_0)) / (2*π)
     
     Args:
-        density (float): Plasma density in m^-3
+        density (float or numpy.ndarray): Plasma density in m^-3
         
     Returns:
-        float: Plasma frequency in Hz
+        float or numpy.ndarray: Plasma frequency in Hz
         
     Example:
         >>> get_plasma_frequency(1e19)  # 1e19 m^-3
         2.84e10  # Hz (28.4 GHz)
+        >>> get_plasma_frequency(np.array([1e19, 2e19]))  # 1e19, 2e19 m^-3
+        array([2.84e10, 4.02e10])  # Hz
     """
+    # Convert to numpy array if scalar
+    if not isinstance(density, np.ndarray):
+        density = np.array(density)
+    
     # Constants
     e = constant.elementary_charge  # Elementary charge in C
     m_e = constant.m_e  # Electron mass in kg
@@ -166,7 +193,8 @@ def get_plasma_frequency(density):
     omega_pe = np.sqrt(density * e**2 / (m_e * epsilon_0))
     f_pe = omega_pe / (2 * np.pi)
     
-    return f_pe
+    # Return scalar if input was scalar
+    return f_pe.item() if f_pe.size == 1 else f_pe
 
 
 def get_cyclotron_frequency(bfield):
@@ -177,15 +205,21 @@ def get_cyclotron_frequency(bfield):
     gyrate around magnetic field lines: f_ce = e * B / (m_e * 2*π)
     
     Args:
-        bfield (float): Magnetic field strength in Tesla
+        bfield (float or numpy.ndarray): Magnetic field strength in Tesla
         
     Returns:
-        float: Cyclotron frequency in Hz
+        float or numpy.ndarray: Cyclotron frequency in Hz
         
     Example:
         >>> get_cyclotron_frequency(2.5)  # 2.5 T
         7.0e10  # Hz (70 GHz)
+        >>> get_cyclotron_frequency(np.array([2.0, 2.5, 3.0]))  # 2.0, 2.5, 3.0 T
+        array([5.6e10, 7.0e10, 8.4e10])  # Hz
     """
+    # Convert to numpy array if scalar
+    if not isinstance(bfield, np.ndarray):
+        bfield = np.array(bfield)
+    
     # Constants
     e = constant.elementary_charge  # Elementary charge in C
     m_e = constant.m_e  # Electron mass in kg
@@ -194,7 +228,8 @@ def get_cyclotron_frequency(bfield):
     omega_ce = e * bfield / m_e
     f_ce = omega_ce / (2 * np.pi)
     
-    return f_ce
+    # Return scalar if input was scalar
+    return f_ce.item() if f_ce.size == 1 else f_ce
 
 
 def is_Omode_propagating(frequency, density):
@@ -205,20 +240,31 @@ def is_Omode_propagating(frequency, density):
     the plasma frequency (f > f_pe).
     
     Args:
-        frequency (float): Wave frequency in Hz
-        density (float): Plasma density in m^-3
+        frequency (float or numpy.ndarray): Wave frequency in Hz
+        density (float or numpy.ndarray): Plasma density in m^-3
         
     Returns:
-        bool: True if wave can propagate, False if cut-off
+        bool or numpy.ndarray: True if wave can propagate, False if cut-off
         
     Example:
         >>> is_Omode_propagating(3e10, 1e19)  # 30 GHz, 1e19 m^-3
         True  # Can propagate
         >>> is_Omode_propagating(3e10, 2e19)  # 30 GHz, 2e19 m^-3
         False  # Cut-off
+        >>> is_Omode_propagating(np.array([3e10, 4e10]), np.array([1e19, 2e19]))
+        array([True, True])  # Both can propagate
     """
+    # Convert to numpy arrays if scalars
+    if not isinstance(frequency, np.ndarray):
+        frequency = np.array(frequency)
+    if not isinstance(density, np.ndarray):
+        density = np.array(density)
+    
     cutoff_freq = get_Omode_cutoff_frequency(density)
-    return frequency > cutoff_freq
+    result = frequency > cutoff_freq
+    
+    # Return scalar if input was scalar
+    return result.item() if result.size == 1 else result
 
 
 def is_Xmode_propagating(frequency, density, bfield):
@@ -229,16 +275,29 @@ def is_Xmode_propagating(frequency, density, bfield):
     f_lower < f < f_upper
     
     Args:
-        frequency (float): Wave frequency in Hz
-        density (float): Plasma density in m^-3
-        bfield (float): Magnetic field strength in Tesla
+        frequency (float or numpy.ndarray): Wave frequency in Hz
+        density (float or numpy.ndarray): Plasma density in m^-3
+        bfield (float or numpy.ndarray): Magnetic field strength in Tesla
         
     Returns:
-        bool: True if wave can propagate, False if cut-off
+        bool or numpy.ndarray: True if wave can propagate, False if cut-off
         
     Example:
         >>> is_Xmode_propagating(3e10, 1e19, 2.5)  # 30 GHz, 1e19 m^-3, 2.5 T
         True  # Can propagate
+        >>> is_Xmode_propagating(np.array([3e10, 4e10]), np.array([1e19, 2e19]), 2.5)
+        array([True, True])  # Both can propagate
     """
+    # Convert to numpy arrays if scalars
+    if not isinstance(frequency, np.ndarray):
+        frequency = np.array(frequency)
+    if not isinstance(density, np.ndarray):
+        density = np.array(density)
+    if not isinstance(bfield, np.ndarray):
+        bfield = np.array(bfield)
+    
     lower_cutoff, upper_cutoff = get_Xmode_cutoff_frequency(density, bfield)
-    return lower_cutoff < frequency < upper_cutoff
+    result = (lower_cutoff < frequency) & (frequency < upper_cutoff)
+    
+    # Return scalar if input was scalar
+    return result.item() if result.size == 1 else result
