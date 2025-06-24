@@ -105,14 +105,14 @@ class Basic():
         
         x_grid = x[0] + numpy.arange(int(self.nx))*self.dx
         y_grid = y[0] + numpy.arange(int(self.ny))*self.dx
-        interp = RectBivariateSpline(x, y, density)
-        interp_density = interp(x_grid, y_grid)
+        interp = RectBivariateSpline(y, x, density)
+        interp_density = interp(y_grid, x_grid)
 
         ne = (ctypes.POINTER(ctypes.c_double) * self.data.ny)()
-        for i in range(self.data.ny):
-            ne[i] = (ctypes.c_double * self.data.nx)()
-            for j in range(self.data.nx):
-                ne[i][j] = interp_density[i,j]
+        for j in range(self.data.ny):
+            ne[j] = (ctypes.c_double * self.data.nx)()
+            for i in range(self.data.nx):
+                ne[j][i] = interp_density[j,i]
         self.data.ne = ne      
         
     def __set_magnetic_field(self, x, y, b_field):
