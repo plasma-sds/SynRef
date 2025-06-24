@@ -135,14 +135,14 @@ class Basic():
     def __fit_bfield_to_grid(self, x, y, b_field):
         x_grid = x[0] + numpy.arange(int(self.nx))*self.dx
         y_grid = y[0] + numpy.arange(int(self.ny))*self.dx
-        interp = RectBivariateSpline(x, y, b_field)
-        interp_bfield = interp(x_grid, y_grid)
+        interp = RectBivariateSpline(y, x, b_field)
+        interp_bfield = interp(y_grid, x_grid)
         
-        b0 = (ctypes.POINTER(ctypes.c_double) * self.data.nx)()  # Create an array of pointers (for each row)
-        for i in range(self.data.nx):
-            b0[i] = (ctypes.c_double * self.data.ny)()  # Create the row with ny elements
-            for j in range(self.data.ny):
-                b0[i][j] = interp_bfield[i,j]
+        b0 = (ctypes.POINTER(ctypes.c_double) * self.data.ny)()  # Create an array of pointers (for each row)
+        for j in range(self.data.ny):
+            b0[j] = (ctypes.c_double * self.data.nx)()  # Create the row with ny elements
+            for i in range(self.data.nx):
+                b0[j][i] = interp_bfield[j,i]
         self.data.b0 = b0
         
     def __set_angle_antenna(self, angle):
