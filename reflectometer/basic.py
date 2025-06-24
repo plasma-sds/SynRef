@@ -84,18 +84,18 @@ class Basic():
             
     def __make_default_density(self):
         self.x = numpy.arange(0,100,1) * 0.001# in m
-        self.y = numpy.arange(0,100,1) * 0.001# in m
+        self.y = numpy.arange(0,200,1) * 0.001# in m
         self.__set_spatial_resolutions()
         
         profile = numpy.zeros(self.nx)
         profile[50:] = numpy.linspace(0, 3e19, num=(self.nx-50))
-        default_density = numpy.array([list(profile) for i in range(int(self.nx))])
+        default_density = numpy.array([list(profile) for i in range(int(self.ny))])
         
-        ne = (ctypes.POINTER(ctypes.c_double) * self.data.nx)()
-        for i in range(self.data.nx):
-            ne[i] = (ctypes.c_double * self.data.ny)()
-            for j in range(self.data.ny):
-                ne[i][j] = default_density[i,j]
+        ne = (ctypes.POINTER(ctypes.c_double) * self.data.ny)()
+        for j in range(self.data.ny):
+            ne[j] = (ctypes.c_double * self.data.nx)()
+            for i in range(self.data.nx):
+                ne[j][i] = default_density[j,i]
         self.data.ne = ne
         
     def __fit_density_to_grid(self, x, y, density):
@@ -108,10 +108,10 @@ class Basic():
         interp = RectBivariateSpline(x, y, density)
         interp_density = interp(x_grid, y_grid)
 
-        ne = (ctypes.POINTER(ctypes.c_double) * self.data.nx)()
-        for i in range(self.data.nx):
-            ne[i] = (ctypes.c_double * self.data.ny)()
-            for j in range(self.data.ny):
+        ne = (ctypes.POINTER(ctypes.c_double) * self.data.ny)()
+        for i in range(self.data.ny):
+            ne[i] = (ctypes.c_double * self.data.nx)()
+            for j in range(self.data.nx):
                 ne[i][j] = interp_density[i,j]
         self.data.ne = ne      
         
@@ -125,10 +125,10 @@ class Basic():
             
             
     def __make_default_bfield(self):
-        b0 = (ctypes.POINTER(ctypes.c_double) * self.data.nx)()  # Create an array of pointers (for each row)
-        for i in range(self.data.nx):
-            b0[i] = (ctypes.c_double * self.data.ny)()  # Create the row with ny elements
-            for j in range(self.data.ny):
+        b0 = (ctypes.POINTER(ctypes.c_double) * self.data.ny)()  # Create an array of pointers (for each row)
+        for i in range(self.data.ny):
+            b0[i] = (ctypes.c_double * self.data.nx)()  # Create the row with ny elements
+            for j in range(self.data.nx):
                 b0[i][j] = 2.5
         self.data.b0 = b0
         
@@ -259,13 +259,13 @@ class Basic():
         return self.data.ampl_ant, self.data.fase_ant
     
     def get_input_fields(self, kind='density'):
-        field = numpy.zeros((self.data.nx, self.data.ny))
-        for x_index in range(self.data.nx):
-            for y_index in range(self.data.ny):
+        field = numpy.zeros((self.data.ny, self.data.nx))
+        for y_index in range(self.data.ny):
+            for x_index in range(self.data.nx):
                 if kind == 'density':
-                    field[x_index, y_index] = self.data.ne[x_index][y_index]
+                    field[y_index, x_index] = self.data.ne[y_index][x_index]
                 elif kind == 'magnetic':
-                    field[x_index, y_index] = self.data.b0[x_index][y_index]
+                    field[y_index, x_index] = self.data.b0[y_index][x_index]
                 else:
                     raise ValueError('The requested output type is not supported. Supported types are: <density> or <magnetic>')
         return field
