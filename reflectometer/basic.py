@@ -468,10 +468,10 @@ class Basic():
     
     def get_antenna_output(self):
         """
-        Get the antenna output amplitude and phase arrays and return them as numpy arrays.
+        Get the antenna output amplitude and phase arrays and return them as numpy values.
         
         Returns:
-            tuple: (amplitude_array, phase_array) - C arrays containing antenna output
+            tuple: (amplitude_values, phase_values) - C arrays containing antenna output
         """
         return self.data.ampl_ant, self.data.fase_ant
     
