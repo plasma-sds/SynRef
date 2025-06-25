@@ -8,6 +8,7 @@ for O-mode and X-mode electromagnetic waves in plasma.
 
 import scipy.constants as constant
 import numpy as np
+import ctypes
 
 
 def get_Omode_cutoff_density(frequency):
@@ -301,3 +302,66 @@ def is_Xmode_propagating(frequency, density, bfield):
     
     # Return scalar if input was scalar
     return result.item() if result.size == 1 else result
+
+
+def get_frequency_sweep(reflectometer, frequency_range, frequency_resolution):
+    """
+    Perform a frequency sweep using a Basic reflectometer and return antenna output data.
+    
+    This function executes the FW2D calculations for a range of frequencies and
+    collects the antenna phase and amplitude data for each frequency point.
+    
+    Args:
+        reflectometer (Basic): A configured Basic reflectometer instance
+        frequency_range (tuple): (start_frequency, end_frequency) in Hz
+        frequency_resolution (float): Frequency step size in Hz
+        
+    Returns:
+         - 'amplitudes': numpy array of antenna amplitudes
+         - 'phases': numpy array of antenna phases in radians
+
+    Example:
+        >>> from reflectometer.basic import Basic
+        >>> ref = Basic(frequency=3e10)  # 30 GHz
+        >>> amplitudes, phases = get_frequency_sweep(ref, (2.8e10, 3.2e10), 1e9)  # 28-32 GHz, 1 GHz steps
+
+    """
+    # Extract frequency range
+    start_freq, end_freq = frequency_range
+    
+    # Generate frequency array
+    frequencies = np.arange(start_freq, end_freq + frequency_resolution, frequency_resolution)
+    n_frequencies = len(frequencies)
+    
+    # Initialize arrays to store results
+    amplitudes = np.zeros(n_frequencies)
+    phases = np.zeros(n_frequencies)
+    
+    try:
+        # Perform frequency sweep
+        for i, freq in enumerate(frequencies):
+            # Update reflectometer frequency
+            reflectometer.update_frequency(freq)
+            
+            # Execute FW2D calculation
+            # Note: This assumes the reflectometer has a method to run the simulation
+            # You may need to call the appropriate method based on your Basic class implementation
+            result = reflectometer.fw2d.maxwell_2d_omode(ctypes.byref(reflectometer.data))
+            
+            if result != 0:
+                print(f"Warning: FW2D calculation failed for frequency {freq:.2e} Hz")
+                amplitudes[i] = np.nan
+                phases[i] = np.nan
+                continue
+            
+            # Get antenna output
+            amp_array, phase_array = reflectometer.get_antenna_output()
+            
+            amplitudes[i] = amp_array[0]
+            phases[i] = phase_array[0]
+            
+            # Optional: Print progress for long sweeps
+            if n_frequencies > 10 and (i + 1) % (n_frequencies // 10) == 0:
+                print(f"Frequency sweep progress: {i+1}/{n_frequencies} ({100*(i+1)/n_frequencies:.1f}%)")
+
+    return amplitudes, phases
