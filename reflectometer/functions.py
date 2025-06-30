@@ -363,5 +363,6 @@ def get_frequency_sweep(reflectometer, frequency_range, frequency_resolution):
             # Optional: Print progress for long sweeps
             if n_frequencies > 10 and (i + 1) % (n_frequencies // 10) == 0:
                 print(f"Frequency sweep progress: {i+1}/{n_frequencies} ({100*(i+1)/n_frequencies:.1f}%)")
-
+    except:
+        print("Warning: Frequency sweep failed")
     return amplitudes, phases
