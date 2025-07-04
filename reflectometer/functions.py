@@ -365,3 +365,65 @@ def get_frequency_sweep(reflectometer, frequency_range, frequency_resolution):
                 print(f"Frequency sweep progress: {i+1}/{n_frequencies} ({100*(i+1)/n_frequencies:.1f}%)")
 
     return amplitudes, phases
+
+def get_density_sweep(reflectometer, density, x, y):
+    """
+    Perform a density sweep using a Basic reflectometer and return antenna output data.
+    
+    This function executes the FW2D calculations for a series of 2D density profiles
+    that evolve in time (3rd dimension). The density array should have shape (ny, nx, nt)
+    where nt is the number of time steps.
+    
+    Args:
+        reflectometer (Basic): A configured Basic reflectometer instance
+        density (numpy.ndarray): 3D array of density profiles with shape (ny, nx, nt)
+                                 where nt is the number of time steps
+        x (numpy.ndarray): 1D array of x coordinates in meters
+        y (numpy.ndarray): 1D array of y coordinates in meters
+    Returns:
+        tuple: (amplitudes, phases) where:
+            - amplitudes: numpy array of antenna amplitudes for each time step
+            - phases: numpy array of antenna phases in radians for each time step
+
+    """
+    
+    # Check input array dimensions
+    if len(density.shape) != 3:
+        raise ValueError("density must be a 3D numpy array with shape (ny, nx, nt)")
+    
+    ny, nx, time_steps = density.shape
+        
+    # Initialize arrays to store results
+    amplitudes = np.zeros(time_steps)
+    phases = np.zeros(time_steps)
+    
+    # Perform density sweep
+    for time_index in range(time_steps):
+        # Extract 2D density profile for current time step
+        density_slab = density[:, :, time_index]
+            
+        # Update reflectometer with new density profile
+        reflectometer.update_density(density_slab, x, y)
+            
+        # Execute FW2D calculation
+        result = reflectometer.fw2d.maxwell_2d_omode(ctypes.byref(reflectometer.data))
+            
+        if result != 0:
+            print(f"Warning: FW2D calculation failed for time step {time_index}")
+            amplitudes[time_index] = np.nan
+            phases[time_index] = np.nan
+            continue
+            
+        # Get antenna output
+        amp_array, phase_array = reflectometer.get_antenna_output()
+            
+        # Store results (using first antenna element)
+        amplitudes[time_index] = amp_array[0]
+        phases[time_index] = phase_array[0]
+            
+        # Optional: Print progress for long sweeps
+        if time_steps > 10 and (time_index + 1) % (time_steps // 10) == 0:
+            print(f"Density sweep progress: {time_index+1}/{time_steps} ({100*(time_index+1)/time_steps:.1f}%)")
+    
+    
+    return amplitudes, phases
