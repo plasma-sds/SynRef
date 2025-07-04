@@ -428,3 +428,55 @@ def get_density_sweep(reflectometer, density, x, y):
     
     
     return amplitudes, phases
+
+
+def get_full_sweep(reflectometer, density, x, y, frequency_range, frequency_resolution):
+    """
+    Perform both density and frequency sweeps using a Basic reflectometer and return antenna output data.
+
+    For each time step in the density array, perform a frequency sweep over the specified range.
+    Returns 2D arrays of amplitudes and phases with shape (n_frequencies, n_time_steps).
+
+    Args:
+        reflectometer (Basic): A configured Basic reflectometer instance
+        density (numpy.ndarray): 3D array of density profiles with shape (ny, nx, nt)
+        x (numpy.ndarray): 1D array of x coordinates in meters
+        y (numpy.ndarray): 1D array of y coordinates in meters
+        frequency_range (tuple): (start_frequency, end_frequency) in Hz
+        frequency_resolution (float): Frequency step size in Hz
+
+    Returns:
+        tuple: (amplitudes, phases) where:
+            - amplitudes: 2D numpy array of shape (n_frequencies, n_time_steps)
+            - phases: 2D numpy array of shape (n_frequencies, n_time_steps)
+    """
+    # Extract frequency range
+    start_freq, end_freq = frequency_range
+    frequencies = np.arange(start_freq, end_freq + frequency_resolution, frequency_resolution)
+    n_frequencies = len(frequencies)
+
+    # Check input array dimensions
+    if len(density.shape) != 3:
+        raise ValueError("density must be a 3D numpy array with shape (ny, nx, nt)")
+    ny, nx, n_time_steps = density.shape
+
+    # Initialize arrays to store results
+    amplitudes = np.zeros((n_frequencies, n_time_steps))
+    phases = np.zeros((n_frequencies, n_time_steps))
+
+    try:
+        for t in range(n_time_steps):
+            # Extract 2D density profile for current time step
+            density_slab = density[:, :, t]
+            # Update reflectometer with new density profile
+            reflectometer.update_density(density_slab, x, y)
+            # Use get_frequency_sweep for this time step
+            amp_arr, phase_arr = get_frequency_sweep(reflectometer, frequency_range, frequency_resolution)
+            amplitudes[:, t] = amp_arr
+            phases[:, t] = phase_arr
+            # Optional: Print progress for long sweeps
+            if n_time_steps > 10 and (t + 1) % (n_time_steps // 10) == 0:
+                print(f"Full sweep progress: {t+1}/{n_time_steps} ({100*(t+1)/n_time_steps:.1f}%)")
+    except Exception as e:
+        print(f"Full sweep failed: {e}")
+    return amplitudes, phases
