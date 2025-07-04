@@ -366,13 +366,14 @@ def get_frequency_sweep(reflectometer, frequency_range, frequency_resolution):
 
     return amplitudes, phases
 
+
 def get_density_sweep(reflectometer, density, x, y):
     """
     Perform a density sweep using a Basic reflectometer and return antenna output data.
     
     This function executes the FW2D calculations for a series of 2D density profiles
     that evolve in time (3rd dimension). The density array should have shape (ny, nx, nt)
-    where nt is the number of time steps.
+    where nt is the number of time steps.   
     
     Args:
         reflectometer (Basic): A configured Basic reflectometer instance
