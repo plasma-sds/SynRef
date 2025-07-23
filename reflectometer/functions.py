@@ -322,6 +322,7 @@ def get_frequency_sweep(reflectometer, frequencies,
         reflectometer (Basic): A configured Basic reflectometer instance
         frequencies: iterable, frequency values in Hz
         con_filename: naming convention of the config file - config_0000_{<frequency index>}.json
+        (if set to False or 0 -> no config file created)
         path: location of the saved configuration file
         
     Returns:
@@ -358,12 +359,15 @@ def get_frequency_sweep(reflectometer, frequencies,
             phases[i] = np.nan
             continue
         
-        # Create a config file, which contains input data, and scalar outputs
-        config_file = fm.export_dict(fm.create_config(reflectometer),
-                                     con_filename.format(i),
-                                     path=path)
-        # Print the progress of the calculation
-        print(con_filename.format(i), datetime.now()-start)
+        if con_filename != False:
+            # Create a config file, which contains input data, and scalar outputs
+            config_file = fm.export_dict(fm.create_config(reflectometer),
+                                         con_filename.format(i),
+                                         path=path)
+            # Print the progress of the calculation
+            print(con_filename.format(i), datetime.now()-start)
+        else:
+            print(i, datetime.now()-start)
         
         # Get antenna output
         amp_array, phase_array = reflectometer.get_antenna_output()
@@ -392,6 +396,7 @@ def get_density_sweep(reflectometer, density, x, y, frames,
         y (numpy.ndarray): 1D array of y coordinates in meters
         frames: iterable, a subselection of time steps
         con_filename: naming convention of the config file - config_{<frame>}_000.json
+        (if set to False or 0 -> no config file created)
         path: location of the saved configuration file
         
     Returns:
@@ -431,12 +436,15 @@ def get_density_sweep(reflectometer, density, x, y, frames,
             phases[j] = np.nan
             continue
         
-        # Create a config file, which contains input data, and scalar outputs
-        config_file = fm.export_dict(fm.create_config(reflectometer),
-                                     con_filename.format(frame),
-                                     path=path)
-        # Print the progress of the calculation
-        print(con_filename.format(frame), datetime.now()-start)
+        if con_filename != False:
+            # Create a config file, which contains input data, and scalar outputs
+            config_file = fm.export_dict(fm.create_config(reflectometer),
+                                         con_filename.format(frame),
+                                         path=path)
+            # Print the progress of the calculation
+            print(con_filename.format(frame), datetime.now()-start)
+        else:
+            print(frame, datetime.now()-start)
             
         # Get antenna output
         amp_array, phase_array = reflectometer.get_antenna_output()
@@ -465,6 +473,7 @@ def get_full_sweep(reflectometer, density, x, y, frequencies, frames,
         frequencies: iterable, frequency values in Hz
         frames: iterable, a subselection of time steps
         con_filename: naming convention of the config file - config_{<frame>}_{<frequency index>}.json
+        (if set to False or 0 -> no config file created)
         path: location of the saved configuration file
 
     Returns:
@@ -507,12 +516,15 @@ def get_full_sweep(reflectometer, density, x, y, frequencies, frames,
                     phases[i, j] = np.nan
                     continue
                 
-                # Create a config file, which contains input data, and scalar outputs
-                config_file = fm.export_dict(fm.create_config(reflectometer),
-                                             con_filename.format(frame, i),
-                                             path=path)
-                # Print the progress of the calculation
-                print(con_filename.format(frame, i), datetime.now()-start)
+                if con_filename != False:
+                    # Create a config file, which contains input data, and scalar outputs
+                    config_file = fm.export_dict(fm.create_config(reflectometer),
+                                                 con_filename.format(frame, i),
+                                                 path=path)
+                    # Print the progress of the calculation
+                    print(con_filename.format(frame, i), datetime.now()-start)
+                else:
+                    print(frame, i, datetime.now()-start)
                 
                 # Get antenna output
                 amp_array, phase_array = reflectometer.get_antenna_output()
