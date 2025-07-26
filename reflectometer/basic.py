@@ -484,13 +484,13 @@ class Basic():
         Get the input field data as a numpy array and return it.
         
         Args:
-            kind (str): Field type ('density' or 'magnetic')
+            kind (str): Field type ('density', 'magnetic' or 'electric')
             
         Returns:
             numpy.ndarray: 2D array containing the field data
             
         Raises:
-            ValueError: If kind is not 'density' or 'magnetic'
+            ValueError: If kind is not 'density' , 'magnetic' or 'electric'
         """
         field = numpy.zeros((self.data.ny, self.data.nx))
         for y_index in range(self.data.ny):
@@ -499,6 +499,8 @@ class Basic():
                     field[y_index, x_index] = self.data.ne[y_index][x_index]
                 elif kind == 'magnetic':
                     field[y_index, x_index] = self.data.b0[y_index][x_index]
+                elif kind == 'electric':
+                    field[y_index, x_index] = self.data.ez_final[y_index][x_index]
                 else:
                     raise ValueError('The requested output type is not supported. Supported types are: <density> or <magnetic>')
         return field
