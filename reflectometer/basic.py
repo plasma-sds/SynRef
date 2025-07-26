@@ -399,8 +399,8 @@ class Basic():
             frequency (float): New wave frequency in Hz
         """
         x_old, y_old, time_old = self.get_axis()
-        magnetic = self.get_input_fields(kind='magnetic')
-        density = self.get_input_fields(kind='density')
+        magnetic = self.get_fields(kind='magnetic')
+        density = self.get_fields(kind='density')
         
         self.__set_frequency(frequency=frequency)
         self.__set_frequency_dependence()
@@ -422,7 +422,7 @@ class Basic():
             reflection_distance (str or float): Reflection distance or 'default'
         """
         x_old, y_old, time_old = self.get_axis()
-        magnetic = self.get_input_fields(kind='magnetic')
+        magnetic = self.get_fields(kind='magnetic')
         
         self.__set_density_field(x=x, y=y, density=density)
         self.__set_magnetic_field(x=x_old, y=y_old, b_field=magnetic)
@@ -479,7 +479,7 @@ class Basic():
         """
         return self.data.ampl_ant, self.data.fase_ant
     
-    def get_input_fields(self, kind='density'):
+    def get_fields(self, kind='density'):
         """
         Get the input field data as a numpy array and return it.
         
@@ -528,8 +528,8 @@ class Basic():
             title (str): Optional title for the plot
         """
         x, y, time = self.get_axis()
-        density = self.get_input_fields()
-        ez = self.get_input_fields(kind='electric')
+        density = self.get_fields()
+        ez = self.get_fields(kind='electric')
         fig, ax = plt.subplots(nrows=1, ncols=2, figsize=(14,6))
         try:
             img_dens = ax[0].contourf(x*100, y*100, density, levels=200, cmap='plasma')
