@@ -12,6 +12,7 @@ electromagnetic wave propagation solvers.
 import os
 import ctypes
 import numpy
+from .conversions import from_unit_to_centi
 import scipy.constants as constant
 import matplotlib.pyplot as plt
 from scipy.interpolate import RectBivariateSpline
@@ -532,9 +533,13 @@ class Basic():
         ez = self.get_fields(kind='electric')
         fig, ax = plt.subplots(nrows=1, ncols=2, figsize=(14,6))
         try:
-            img_dens = ax[0].contourf(x*100, y*100, density, levels=200, cmap='plasma')
+            img_dens = ax[0].contourf(from_unit_to_centi(x), 
+                                      from_unit_to_centi(y), 
+                                      density, levels=200, cmap='plasma')
         except TypeError:
-            img_dens = ax[0].contourf(x*100, y*100, density.T, levels=200, cmap='plasma')
+            img_dens = ax[0].contourf(from_unit_to_centi(x), 
+                                      from_unit_to_centi(y),
+                                      density.T, levels=200, cmap='plasma')
         ax[0].set_title("Density field"+title, fontsize=14, fontweight = 'bold')
         ax[0].tick_params(axis='both', labelsize= 12)
         ax[0].set_aspect('equal', adjustable='box')
@@ -546,11 +551,15 @@ class Basic():
         col.ax.set_ylabel('Density [m-3]',fontsize=12, fontweight = 'bold')
         
         try:
-            img_ez = ax[1].contourf(x*100, y*100, ez, levels=200, cmap="RdBu_r",
-                 vmin=-numpy.max(ez), vmax=numpy.max(ez))
+            img_ez = ax[1].contourf(from_unit_to_centi(x), 
+                                    from_unit_to_centi(y),
+                                    ez, levels=200, cmap="RdBu_r",
+                                    vmin=-numpy.max(ez), vmax=numpy.max(ez))
         except TypeError:
-            img_ez = ax[1].contourf(x*100, y*100, ez.T, levels=200, cmap="RdBu_r",
-                 vmin=-numpy.max(ez), vmax=numpy.max(ez))
+            img_ez = ax[1].contourf(from_unit_to_centi(x), 
+                                    from_unit_to_centi(y),
+                                    ez.T, levels=200, cmap="RdBu_r",
+                                    vmin=-numpy.max(ez), vmax=numpy.max(ez))
         ax[1].set_title("Electric field"+title, fontsize=14, fontweight = 'bold')
         ax[1].tick_params(axis='both', labelsize= 12)
         ax[1].set_aspect('equal', adjustable='box')
