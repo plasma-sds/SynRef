@@ -529,14 +529,13 @@ class Basic():
         """
         x, y, time = self.get_axis()
         density = self.get_input_fields()
-        magnetic = self.get_input_fields(kind='magnetic')
         ez = self.get_input_fields(kind='electric')
         fig, ax = plt.subplots(nrows=1, ncols=2, figsize=(14,6))
         try:
             img_dens = ax[0].contourf(x*100, y*100, density, levels=200, cmap='plasma')
         except TypeError:
             img_dens = ax[0].contourf(x*100, y*100, density.T, levels=200, cmap='plasma')
-        ax[0].set_title("Density field for "+title, fontsize=14, fontweight = 'bold')
+        ax[0].set_title("Density field"+title, fontsize=14, fontweight = 'bold')
         ax[0].tick_params(axis='both', labelsize= 12)
         ax[0].set_aspect('equal', adjustable='box')
         ax[0].set_xlabel('X axis [cm]', fontsize=14, fontweight = 'bold')
@@ -552,14 +551,14 @@ class Basic():
         except TypeError:
             img_ez = ax[1].contourf(x*100, y*100, ez.T, levels=200, cmap="RdBu_r",
                  vmin=-numpy.max(ez), vmax=numpy.max(ez))
-        ax[1].set_title("Electric field for "+title, fontsize=14, fontweight = 'bold')
+        ax[1].set_title("Electric field"+title, fontsize=14, fontweight = 'bold')
         ax[1].tick_params(axis='both', labelsize= 12)
         ax[1].set_aspect('equal', adjustable='box')
         ax[1].set_xlabel('X axis [cm]', fontsize=14, fontweight = 'bold')
         
         col = fig.colorbar(img_ez, ax=ax[1])
         col.ax.tick_params(labelsize= 12, which='both')
-        col.ax.set_ylabel('Electric Field [mV]',fontsize=12, fontweight = 'bold')
+        col.ax.set_ylabel('Electric Field [V/m]',fontsize=12, fontweight = 'bold')
         
         
         plt.tight_layout()
