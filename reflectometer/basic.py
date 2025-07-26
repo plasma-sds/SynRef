@@ -520,28 +520,59 @@ class Basic():
         time = numpy.arange(self.data.nt)*self.dt
         return x, y, time
     
-    def plot_density(self, title=''):
+    def plot_results(self, title=''):
         """
-        Plot the plasma density field.
+        Plot the plasma density field, the magnetic field and the electic field.
         
         Args:
             title (str): Optional title for the plot
         """
         x, y, time = self.get_axis()
         density = self.get_input_fields()
-        fig, ax = plt.subplots(figsize=(15,4.5))
+        magnetic = self.get_input_fields(kind='magnetic')
+        ez = self.get_input_fields(kind='electric')
+        fig, ax = plt.subplots(nrows=1, ncols=3, figsize=(14,6))
         try:
-            dens = ax.contourf(x, y, density, levels=200, cmap='plasma')
+            img_dens = ax[0].contourf(x, y, density, levels=200, cmap='plasma')
         except TypeError:
-            dens = ax.contourf(x, y, density.T, levels=200, cmap='plasma')
-        ax.set_title("Density field for "+title, fontsize=14, fontweight = 'bold')
-        ax.tick_params(axis='both', labelsize= 12)
-        ax.set_aspect('equal', adjustable='box')
-        ax.set_xlabel('X axis [m]', fontsize=14, fontweight = 'bold')
-        ax.set_ylabel('Y axis [m]', fontsize=14, fontweight = 'bold')
+            img_dens = ax[0].contourf(x, y, density.T, levels=200, cmap='plasma')
+        ax[0].set_title("Density field for "+title, fontsize=14, fontweight = 'bold')
+        ax[0].tick_params(axis='both', labelsize= 12)
+        ax[0].set_aspect('equal', adjustable='box')
+        ax[0].set_xlabel('X axis [m]', fontsize=14, fontweight = 'bold')
+        ax[0].set_ylabel('Y axis [m]', fontsize=14, fontweight = 'bold')
         
-        col = fig.colorbar(dens, ax=ax)
+        col = fig.colorbar(img_dens, ax=ax[0])
         col.ax.tick_params(labelsize= 12, which='both')
         col.ax.set_ylabel('Density [m-3]',fontsize=12, fontweight = 'bold')
         
+        try:
+            img_ez = ax[1].contourf(x, y, ez, levels=200, cmap='plasma')
+        except TypeError:
+            img_ez = ax[1].contourf(x, y, ez.T, levels=200, cmap='plasma')
+        ax[1].set_title("Electric field for "+title, fontsize=14, fontweight = 'bold')
+        ax[1].tick_params(axis='both', labelsize= 12)
+        ax[1].set_aspect('equal', adjustable='box')
+        ax[1].set_xlabel('X axis [m]', fontsize=14, fontweight = 'bold')
+        ax[1].set_ylabel('Y axis [m]', fontsize=14, fontweight = 'bold')
+        
+        col = fig.colorbar(img_ez, ax=ax[1])
+        col.ax.tick_params(labelsize= 12, which='both')
+        col.ax.set_ylabel('Electric Field [mV]',fontsize=12, fontweight = 'bold')
+        
+        try:
+            img_ez = ax[2].contourf(x, y, magnetic, levels=200, cmap='plasma')
+        except TypeError:
+            img_ez = ax[2].contourf(x, y, magnetic.T, levels=200, cmap='plasma')
+        ax[2].set_title("Magnetic field for "+title, fontsize=14, fontweight = 'bold')
+        ax[2].tick_params(axis='both', labelsize= 12)
+        ax[2].set_aspect('equal', adjustable='box')
+        ax[2].set_xlabel('X axis [m]', fontsize=14, fontweight = 'bold')
+        ax[2].set_ylabel('Y axis [m]', fontsize=14, fontweight = 'bold')
+        
+        col = fig.colorbar(img_ez, ax=ax[2])
+        col.ax.tick_params(labelsize= 12, which='both')
+        col.ax.set_ylabel('Magnetic Field [T]',fontsize=12, fontweight = 'bold')
+        
+        plt.tight_layout()
         plt.show()
