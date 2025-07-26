@@ -35,6 +35,7 @@ class InputData(ctypes.Structure):                                  #Input data 
         ("angle", ctypes.c_double),                                         # Angle of propagation in [deg]
         ("b0", ctypes.POINTER(ctypes.POINTER(ctypes.c_double))),            # Magnetic field
         ("ne", ctypes.POINTER(ctypes.POINTER(ctypes.c_double))),            # Plasma density field
+        ("ez_final", ctypes.POINTER(ctypes.POINTER(ctypes.c_double))),      # Final version of the ez field
         ("ampl_ant", ctypes.POINTER(ctypes.c_double)),                      # E amplitude at the antenna
         ("fase_ant", ctypes.POINTER(ctypes.c_double)),                      # Phase at the antenna
     ]
@@ -357,9 +358,12 @@ class Basic():
             
         if not isinstance(solver, str):
             raise TypeError('The expected type for the solver input is str.')
-        if solver == 'basic':
+        if solver == 'test':
             self.solver=solver
             solver_path = ''
+        elif solver == 'basic':
+            self.solver = solver
+            solver_path = '_ezf'
         elif solver == 'ez_evo':
             pass
         elif solver == 'multi_ant':
