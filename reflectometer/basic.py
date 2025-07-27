@@ -89,7 +89,7 @@ class Basic():
             reflection_distance (str or float): Reflection distance in meters or 'default'
         """
         
-        self.data = InputData()
+        self.__set_solver_and_datastruct(wavemode=wavemode, solver=solver)
         self.__set_frequency(frequency)
         self.__set_frequency_dependence()
         self.__set_density_field(x=x, y=y, density=density)
@@ -98,7 +98,6 @@ class Basic():
         self.__set_simulation_timesteps(reflection_distance=reflection_distance)
         self.__set_beam_waist(waist=beam_waist)
         self.__set_antenna_pos(antenna_pos=antenna_pos)
-        self.__set_solver(wavemode=wavemode, solver=solver)
         self.__set_outputdata(solver=solver)
         
   
@@ -328,7 +327,7 @@ class Basic():
             self.antenna_pos = antenna_pos
         self.data.yante = int(self.ny - (self.antenna_pos - self.y[0]) // self.dx)
         
-    def __set_solver(self, wavemode, solver):
+    def __set_solver_and_datastruct(self, wavemode, solver):
         """
         Set up the C solver library.
         
@@ -336,12 +335,12 @@ class Basic():
             wavemode (str): Wave mode ('O' or 'X')
             solver (str): Solver type
         """
-        self.__set_solver_path(wavemode=wavemode, solver=solver)
+        self.__set_solver_path_and_datastruct(wavemode=wavemode, solver=solver)
         self.fw2d = ctypes.CDLL(self.fw2d_path)
         self.fw2d.maxwell_2d_omode.argtypes = [ctypes.POINTER(InputData)]
         self.fw2d.maxwell_2d_omode.restype = ctypes.c_int
         
-    def __set_solver_path(self, wavemode, solver):
+    def __set_solver_path_and_datastruct(self, wavemode, solver):
         """
         Set the path to the C solver library.
         
@@ -359,14 +358,14 @@ class Basic():
             
         if not isinstance(solver, str):
             raise TypeError('The expected type for the solver input is str.')
-        if solver == 'test':
-            self.solver=solver
-            solver_path = ''
-        elif solver == 'basic':
+        if solver == 'basic':
+            self.data = InputData()
             self.solver = solver
             solver_path = '_ezf'
         elif solver == 'ez_evo':
-            pass
+            self.data = InputData()
+            self.solver = solver
+            solver_path = '_ezf_time'
         elif solver == 'multi_ant':
             pass
         elif solver == 'multi_evo':
