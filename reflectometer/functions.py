@@ -344,7 +344,7 @@ def get_frequency_sweep(reflectometer, frequencies,
     print('Start: ', start)
     
     # Perform frequency sweep
-    for i, freq in enumerate(frequencies):
+    for freq_ind, freq in enumerate(frequencies):
         # Update reflectometer frequency
         reflectometer.update_frequency(freq)
         
@@ -355,25 +355,25 @@ def get_frequency_sweep(reflectometer, frequencies,
         
         if result != 0:
             print(f"Warning: FW2D calculation failed for frequency {freq:.2e} Hz")
-            amplitudes[i] = np.nan
-            phases[i] = np.nan
+            amplitudes[freq_ind] = np.nan
+            phases[freq_ind] = np.nan
             continue
         
         if con_filename != False:
             # Create a config file, which contains input data, and scalar outputs
             config_file = fm.export_dict(fm.create_config(reflectometer),
-                                         con_filename.format(i),
+                                         con_filename.format(freq_ind),
                                          path=path)
             # Print the progress of the calculation
-            print(con_filename.format(i), datetime.now()-start)
+            print(con_filename.format(freq_ind), datetime.now()-start)
         else:
-            print(i, datetime.now()-start)
+            print(freq_ind, datetime.now()-start)
         
         # Get antenna output
         amp_array, phase_array = reflectometer.get_antenna_output()
         
-        amplitudes[i] = amp_array[0]
-        phases[i] = phase_array[0]
+        amplitudes[freq_ind] = amp_array[0]
+        phases[freq_ind] = phase_array[0]
             
     return amplitudes, phases
 
@@ -420,7 +420,7 @@ def get_density_sweep(reflectometer, density, x, y, frames,
     print('Start: ', start)
     
     # Perform density sweep
-    for j, frame in enumerate(frames):
+    for frame_ind, frame in enumerate(frames):
         # Extract 2D density profile for current time step
         density_slab = density[frame]
             
@@ -432,8 +432,8 @@ def get_density_sweep(reflectometer, density, x, y, frames,
             
         if result != 0:
             print(f"Warning: FW2D calculation failed for time step {frame}")
-            amplitudes[j] = np.nan
-            phases[j] = np.nan
+            amplitudes[frame_ind] = np.nan
+            phases[frame_ind] = np.nan
             continue
         
         if con_filename != False:
@@ -450,8 +450,8 @@ def get_density_sweep(reflectometer, density, x, y, frames,
         amp_array, phase_array = reflectometer.get_antenna_output()
             
         # Store results (using first antenna element)
-        amplitudes[j] = amp_array[0]
-        phases[j] = phase_array[0]
+        amplitudes[frame_ind] = amp_array[0]
+        phases[frame_ind] = phase_array[0]
     
     return amplitudes, phases
 
@@ -494,14 +494,14 @@ def get_full_sweep(reflectometer, density, x, y, frequencies, frames,
     print('Start: ', start)
 
     try:
-        for j, frame in enumerate(frames):
+        for frame_ind, frame in enumerate(frames):
             # Extract 2D density profile for current time step
             density_slab = density[frame]
             # Update reflectometer with new density profile
             reflectometer.update_density(density_slab, x, y)
             
             # Perform frequency sweep
-            for i, freq in enumerate(frequencies):
+            for freq_ind, freq in enumerate(frequencies):
                 # Update reflectometer frequency
                 reflectometer.update_frequency(freq)
                 
@@ -512,25 +512,25 @@ def get_full_sweep(reflectometer, density, x, y, frequencies, frames,
                 
                 if result != 0:
                     print(f"Warning: FW2D calculation failed for frequency {freq:.2e} Hz, for time step {frame}")
-                    amplitudes[i, j] = np.nan
-                    phases[i, j] = np.nan
+                    amplitudes[freq_ind, frame_ind] = np.nan
+                    phases[freq_ind, frame_ind] = np.nan
                     continue
                 
                 if con_filename != False:
                     # Create a config file, which contains input data, and scalar outputs
                     config_file = fm.export_dict(fm.create_config(reflectometer),
-                                                 con_filename.format(frame, i),
+                                                 con_filename.format(frame, freq_ind),
                                                  path=path)
                     # Print the progress of the calculation
-                    print(con_filename.format(frame, i), datetime.now()-start)
+                    print(con_filename.format(frame, freq_ind), datetime.now()-start)
                 else:
-                    print(frame, i, datetime.now()-start)
+                    print(frame, freq_ind, datetime.now()-start)
                 
                 # Get antenna output
                 amp_array, phase_array = reflectometer.get_antenna_output()
                 
-                amplitudes[i, j] = amp_array[0]
-                phases[i, j] = phase_array[0]
+                amplitudes[freq_ind, frame_ind] = amp_array[0]
+                phases[freq_ind, frame_ind] = phase_array[0]
                 
     except Exception as e:
         print(f"Full sweep failed: {e}")
