@@ -199,7 +199,7 @@ class Basic():
         Args:
             x (numpy.ndarray): X-axis coordinates of input density data in m
             y (numpy.ndarray): Y-axis coordinates of input density data in m
-            density (numpy.ndarray): Plasma density data in m^-3
+            density (numpy.ndarray): Plasma density data in m^-3 [i_y, i_x]
         """
         self.x = x
         self.y = y
