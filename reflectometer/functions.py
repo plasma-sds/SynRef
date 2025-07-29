@@ -9,6 +9,11 @@ for O-mode and X-mode electromagnetic waves in plasma.
 import scipy.constants as constant
 import numpy as np
 import ctypes
+from datetime import datetime
+import sys
+import os
+sys.path.append(os.path.dirname(__file__))
+import file_management as fm
 
 
 def get_Omode_cutoff_density(frequency):
@@ -304,7 +309,9 @@ def is_Xmode_propagating(frequency, density, bfield):
     return result.item() if result.size == 1 else result
 
 
-def get_frequency_sweep(reflectometer, frequency_range, frequency_resolution):
+def get_frequency_sweep(reflectometer, frequencies,
+                        con_filename = "config_0000_{0:03d}.json",
+                        path = ''):
     """
     Perform a frequency sweep using a Basic reflectometer and return antenna output data.
     
@@ -313,8 +320,10 @@ def get_frequency_sweep(reflectometer, frequency_range, frequency_resolution):
     
     Args:
         reflectometer (Basic): A configured Basic reflectometer instance
-        frequency_range (tuple): (start_frequency, end_frequency) in Hz
-        frequency_resolution (float): Frequency step size in Hz
+        frequencies: iterable, frequency values in Hz
+        con_filename: naming convention of the config file - config_0000_{<frequency index>}.json
+        (if set to False or 0 -> no config file created)
+        path: location of the saved configuration file
         
     Returns:
          - 'amplitudes': numpy array of antenna amplitudes
@@ -326,61 +335,70 @@ def get_frequency_sweep(reflectometer, frequency_range, frequency_resolution):
         >>> amplitudes, phases = get_frequency_sweep(ref, (2.8e10, 3.2e10), 1e9)  # 28-32 GHz, 1 GHz steps
 
     """
-    # Extract frequency range
-    start_freq, end_freq = frequency_range
-    
-    # Generate frequency array
-    frequencies = np.arange(start_freq, end_freq + frequency_resolution, frequency_resolution)
-    n_frequencies = len(frequencies)
     
     # Initialize arrays to store results
-    amplitudes = np.zeros(n_frequencies)
-    phases = np.zeros(n_frequencies)
+    amplitudes = np.zeros(len(frequencies))
+    phases = np.zeros(len(frequencies))
     
-    try:
-        # Perform frequency sweep
-        for i, freq in enumerate(frequencies):
-            # Update reflectometer frequency
-            reflectometer.update_frequency(freq)
+    start = datetime.now()
+    print('Start: ', start)
+    
+    # Perform frequency sweep
+    for freq_ind, freq in enumerate(frequencies):
+        # Update reflectometer frequency
+        reflectometer.update_frequency(freq)
+        
+        # Execute FW2D calculation
+        # Note: This assumes the reflectometer has a method to run the simulation
+        # You may need to call the appropriate method based on your Basic class implementation
+        result = reflectometer.fw2d.maxwell_2d_omode(ctypes.byref(reflectometer.data))
+        
+        if result != 0:
+            print(f"Warning: FW2D calculation failed for frequency {freq:.2e} Hz")
+            amplitudes[freq_ind] = np.nan
+            phases[freq_ind] = np.nan
+            continue
+        
+        if con_filename != False:
+            # Create a config file, which contains input data, and scalar outputs
+            config_file = fm.export_dict(fm.create_config(reflectometer),
+                                         con_filename.format(freq_ind),
+                                         path=path)
+            # Print the progress of the calculation
+            print(con_filename.format(freq_ind), datetime.now()-start)
+        else:
+            print(freq_ind, datetime.now()-start)
+        
+        # Get antenna output
+        amp_array, phase_array = reflectometer.get_antenna_output()
+        
+        amplitudes[freq_ind] = amp_array[0]
+        phases[freq_ind] = phase_array[0]
             
-            # Execute FW2D calculation
-            # Note: This assumes the reflectometer has a method to run the simulation
-            # You may need to call the appropriate method based on your Basic class implementation
-            result = reflectometer.fw2d.maxwell_2d_omode(ctypes.byref(reflectometer.data))
-            
-            if result != 0:
-                print(f"Warning: FW2D calculation failed for frequency {freq:.2e} Hz")
-                amplitudes[i] = np.nan
-                phases[i] = np.nan
-                continue
-            
-            # Get antenna output
-            amp_array, phase_array = reflectometer.get_antenna_output()
-            
-            amplitudes[i] = amp_array[0]
-            phases[i] = phase_array[0]
-            
-            # Optional: Print progress for long sweeps
-            if n_frequencies > 10 and (i + 1) % (n_frequencies // 10) == 0:
-                print(f"Frequency sweep progress: {i+1}/{n_frequencies} ({100*(i+1)/n_frequencies:.1f}%)")
-    except: print ("Frequency sweep failed")
     return amplitudes, phases
 
 
-def get_density_sweep(reflectometer, density, x, y):
+def get_density_sweep(reflectometer, density, x, y, frames,
+                      con_filename = "config_{0:04d}_000.json",
+                      path = ''):
     """
     Perform a density sweep using a Basic reflectometer and return antenna output data.
     
     This function executes the FW2D calculations for a series of 2D density profiles
-    that evolve in time (3rd dimension). The density array should have shape (ny, nx, nt)
-    where nt is the number of time steps.   
+    that evolve in time (3rd dimension). The density array should have shape (nt, ny, nx)
+    where nt is the number of time steps.
     
     Args:
         reflectometer (Basic): A configured Basic reflectometer instance
-        density (numpy.ndarray): 3D array of density profiles with shape (ny, nx, nt)
+        density (numpy.ndarray): 3D array of density profiles with shape (nt, ny, nx)
                                  where nt is the number of time steps
         x (numpy.ndarray): 1D array of x coordinates in meters
         y (numpy.ndarray): 1D array of y coordinates in meters
+        frames: iterable, a subselection of time steps
+        con_filename: naming convention of the config file - config_{<frame>}_000.json
+        (if set to False or 0 -> no config file created)
+        path: location of the saved configuration file
+        
     Returns:
         tuple: (amplitudes, phases) where:
             - amplitudes: numpy array of antenna amplitudes for each time step
@@ -392,16 +410,19 @@ def get_density_sweep(reflectometer, density, x, y):
     if len(density.shape) != 3:
         raise ValueError("density must be a 3D numpy array with shape (ny, nx, nt)")
     
-    ny, nx, time_steps = density.shape
+    time_steps, ny, nx = density.shape
         
     # Initialize arrays to store results
     amplitudes = np.zeros(time_steps)
     phases = np.zeros(time_steps)
     
+    start = datetime.now()
+    print('Start: ', start)
+    
     # Perform density sweep
-    for time_index in range(time_steps):
+    for frame_ind, frame in enumerate(frames):
         # Extract 2D density profile for current time step
-        density_slab = density[:, :, time_index]
+        density_slab = density[frame]
             
         # Update reflectometer with new density profile
         reflectometer.update_density(density_slab, x, y)
@@ -410,27 +431,34 @@ def get_density_sweep(reflectometer, density, x, y):
         result = reflectometer.fw2d.maxwell_2d_omode(ctypes.byref(reflectometer.data))
             
         if result != 0:
-            print(f"Warning: FW2D calculation failed for time step {time_index}")
-            amplitudes[time_index] = np.nan
-            phases[time_index] = np.nan
+            print(f"Warning: FW2D calculation failed for time step {frame}")
+            amplitudes[frame_ind] = np.nan
+            phases[frame_ind] = np.nan
             continue
+        
+        if con_filename != False:
+            # Create a config file, which contains input data, and scalar outputs
+            config_file = fm.export_dict(fm.create_config(reflectometer),
+                                         con_filename.format(frame),
+                                         path=path)
+            # Print the progress of the calculation
+            print(con_filename.format(frame), datetime.now()-start)
+        else:
+            print(frame, datetime.now()-start)
             
         # Get antenna output
         amp_array, phase_array = reflectometer.get_antenna_output()
             
         # Store results (using first antenna element)
-        amplitudes[time_index] = amp_array[0]
-        phases[time_index] = phase_array[0]
-            
-        # Optional: Print progress for long sweeps
-        if time_steps > 10 and (time_index + 1) % (time_steps // 10) == 0:
-            print(f"Density sweep progress: {time_index+1}/{time_steps} ({100*(time_index+1)/time_steps:.1f}%)")
-    
+        amplitudes[frame_ind] = amp_array[0]
+        phases[frame_ind] = phase_array[0]
     
     return amplitudes, phases
 
 
-def get_full_sweep(reflectometer, density, x, y, frequency_range, frequency_resolution):
+def get_full_sweep(reflectometer, density, x, y, frequencies, frames, 
+                   con_filename = "config_{0:04d}_{1:03d}.json",
+                   path = ''):
     """
     Perform both density and frequency sweeps using a Basic reflectometer and return antenna output data.
 
@@ -439,44 +467,71 @@ def get_full_sweep(reflectometer, density, x, y, frequency_range, frequency_reso
 
     Args:
         reflectometer (Basic): A configured Basic reflectometer instance
-        density (numpy.ndarray): 3D array of density profiles with shape (ny, nx, nt)
+        density (numpy.ndarray): 3D array of density profiles with shape (nt, ny, nx)
         x (numpy.ndarray): 1D array of x coordinates in meters
         y (numpy.ndarray): 1D array of y coordinates in meters
-        frequency_range (tuple): (start_frequency, end_frequency) in Hz
-        frequency_resolution (float): Frequency step size in Hz
+        frequencies: iterable, frequency values in Hz
+        frames: iterable, a subselection of time steps
+        con_filename: naming convention of the config file - config_{<frame>}_{<frequency index>}.json
+        (if set to False or 0 -> no config file created)
+        path: location of the saved configuration file
 
     Returns:
         tuple: (amplitudes, phases) where:
             - amplitudes: 2D numpy array of shape (n_frequencies, n_time_steps)
             - phases: 2D numpy array of shape (n_frequencies, n_time_steps)
     """
-    # Extract frequency range
-    start_freq, end_freq = frequency_range
-    frequencies = np.arange(start_freq, end_freq + frequency_resolution, frequency_resolution)
-    n_frequencies = len(frequencies)
-
     # Check input array dimensions
     if len(density.shape) != 3:
         raise ValueError("density must be a 3D numpy array with shape (ny, nx, nt)")
-    ny, nx, n_time_steps = density.shape
+    n_time_steps, ny, nx = density.shape
 
     # Initialize arrays to store results
-    amplitudes = np.zeros((n_frequencies, n_time_steps))
-    phases = np.zeros((n_frequencies, n_time_steps))
+    amplitudes = np.zeros((len(frequencies), len(frames)))
+    phases = np.zeros((len(frequencies), len(frames)))
+    
+    start = datetime.now()
+    print('Start: ', start)
 
     try:
-        for t in range(n_time_steps):
+        for frame_ind, frame in enumerate(frames):
             # Extract 2D density profile for current time step
-            density_slab = density[:, :, t]
+            density_slab = density[frame]
             # Update reflectometer with new density profile
             reflectometer.update_density(density_slab, x, y)
-            # Use get_frequency_sweep for this time step
-            amp_arr, phase_arr = get_frequency_sweep(reflectometer, frequency_range, frequency_resolution)
-            amplitudes[:, t] = amp_arr
-            phases[:, t] = phase_arr
-            # Optional: Print progress for long sweeps
-            if n_time_steps > 10 and (t + 1) % (n_time_steps // 10) == 0:
-                print(f"Full sweep progress: {t+1}/{n_time_steps} ({100*(t+1)/n_time_steps:.1f}%)")
+            
+            # Perform frequency sweep
+            for freq_ind, freq in enumerate(frequencies):
+                # Update reflectometer frequency
+                reflectometer.update_frequency(freq)
+                
+                # Execute FW2D calculation
+                # Note: This assumes the reflectometer has a method to run the simulation
+                # You may need to call the appropriate method based on your Basic class implementation
+                result = reflectometer.fw2d.maxwell_2d_omode(ctypes.byref(reflectometer.data))
+                
+                if result != 0:
+                    print(f"Warning: FW2D calculation failed for frequency {freq:.2e} Hz, for time step {frame}")
+                    amplitudes[freq_ind, frame_ind] = np.nan
+                    phases[freq_ind, frame_ind] = np.nan
+                    continue
+                
+                if con_filename != False:
+                    # Create a config file, which contains input data, and scalar outputs
+                    config_file = fm.export_dict(fm.create_config(reflectometer),
+                                                 con_filename.format(frame, freq_ind),
+                                                 path=path)
+                    # Print the progress of the calculation
+                    print(con_filename.format(frame, freq_ind), datetime.now()-start)
+                else:
+                    print(frame, freq_ind, datetime.now()-start)
+                
+                # Get antenna output
+                amp_array, phase_array = reflectometer.get_antenna_output()
+                
+                amplitudes[freq_ind, frame_ind] = amp_array[0]
+                phases[freq_ind, frame_ind] = phase_array[0]
+                
     except Exception as e:
         print(f"Full sweep failed: {e}")
     return amplitudes, phases
