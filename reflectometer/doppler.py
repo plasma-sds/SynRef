@@ -52,10 +52,20 @@ class Doppler(Basic):
         
     def __axis_reallocation(self):
         lib = self.library
-        self.X = np.linspace(-lib["field_width"][1], -lib["field_width"][0],
-                             self.nx) + lib["antenna_pos"][0]
-        self.Y = np.linspace(*lib["field_height"], 
-                             self.ny) + lib["antenna_pos"][2]
+        self.x_abs = np.linspace(-lib["field_width"][1], -lib["field_width"][0],
+                                 len(self.x)) + lib["antenna_pos"][0]
+        self.y_abs = np.linspace(*lib["field_height"], 
+                                 len(self.y)) + lib["antenna_pos"][2]
+        
+        self.X_abs = np.linspace(-lib["field_width"][1], -lib["field_width"][0],
+                                 self.nx) + lib["antenna_pos"][0]
+        self.Y_abs = np.linspace(*lib["field_height"], 
+                                 self.ny) + lib["antenna_pos"][2]
+        
+        self.X = np.linspace(0, lib["field_width"][1] - lib["field_width"][0],
+                             self.nx)
+        self.Y = np.linspace(0, lib["field_height"][1]-lib["field_height"][0],
+                             self.ny)
         
     # def __angle_conversion(self):
     #     r=0
@@ -94,16 +104,51 @@ class Doppler(Basic):
     def get_libraries(self): return self.setup_library
         
     
+    def frequency_sweep(self, frequency_indices = "default",
+                        con_filename = False, path = ''):
+        
+        if frequency_indices == "default": 
+            frequencies = self.library["frequency"]
+        else: frequencies = self.library["frequency"][frequency_indices]
+        
+        if con_filename == True: func.get_frequency_sweep(self, frequencies)
+        else: func.get_frequency_sweep(self, frequencies,
+                                       con_filename=con_filename, path=path)
+            
+        
+    def density_sweep(self, density_indices = "default",
+                      con_filename = False, path = ''):
+        
+        if density_indices == "default": 
+            density_indices = np.arange(self.density_evolution.shape[0])
+        
+        if con_filename == True: 
+            func.get_density_sweep(self, self.density_evolution, 
+                                   self.x, self.y, density_indices)
+        else: func.get_density_sweep(self, self.density_evolution, 
+                                     self.x, self.y, density_indices,
+                                     con_filename=con_filename, path=path)
+        
     
-
+    def full_sweep(self, frequency_indices = "default", 
+                   density_indices = "default",
+                   con_filename = False, path = ''):
         
-    # def frequency_sweep(self):
+        if frequency_indices == "default": 
+            frequencies = self.library["frequency"]
+        else: frequencies = self.library["frequency"][frequency_indices]
         
+        if density_indices == "default": 
+            density_indices = np.arange(self.density_evolution.shape[0])
         
-    # def density_sweep():
-        
-    # def full_sweep():
-        
+        if con_filename == True: 
+            func.get_full_sweep(self, self.density_evolution, self.x, self.y,
+                                frequencies, density_indices)
+        else: func.get_full_sweep(self, self.density_evolution, self.x, self.y,
+                                  frequencies, density_indices,
+                                  con_filename=con_filename, path=path)
+    
+    
     # def plot_section():
     
     # def plot_wave():
