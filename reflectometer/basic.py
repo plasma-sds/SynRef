@@ -41,6 +41,31 @@ class InputData(ctypes.Structure):                                  #Input data 
         ("fase_ant", ctypes.POINTER(ctypes.c_double)),                      # Phase at the antenna
     ]
     
+class InputDataTime(ctypes.Structure):                                  #Input data structure for Basic FW2D
+    """
+    C structure for passing input data to the Basic FW2D simulation.
+    
+    This structure contains all the parameters needed for the electromagnetic
+    wave propagation simulation including frequency, spatial resolution,
+    plasma density, magnetic field, and antenna configuration.
+    """
+    _fields_ = [
+        ("f0", ctypes.c_double),                                            # Inpute wave frequency [Hz]
+        ("nt", ctypes.c_int),                                               # Number of tenporal iterations [-] 
+        ("nx", ctypes.c_int),                                               # Number of points along x axis [-]
+        ("ny", ctypes.c_int),                                               # Number of points along y axis [-] 
+        ("dx", ctypes.c_double),                                            # Spatail resolution [-]
+        ("yante", ctypes.c_int),                                            # Position of the antenna
+        ("waist", ctypes.c_int),                                            # Beam waist in mesh point numbers [-]
+        ("angle", ctypes.c_double),                                         # Angle of propagation in [deg]
+        ("b0", ctypes.POINTER(ctypes.POINTER(ctypes.c_double))),            # Magnetic field
+        ("ne", ctypes.POINTER(ctypes.POINTER(ctypes.c_double))),            # Plasma density field
+        ("ez_time", ctypes.POINTER(ctypes.POINTER(ctypes.POINTER(ctypes.c_double)))),      # Time evolution version of the ez field
+        ("ez_final", ctypes.POINTER(ctypes.POINTER(ctypes.c_double))),      # Final version of the ez field
+        ("ampl_ant", ctypes.POINTER(ctypes.c_double)),                      # E amplitude at the antenna
+        ("fase_ant", ctypes.POINTER(ctypes.c_double)),                      # Phase at the antenna
+    ]
+    
     
 class Basic():
     """
@@ -334,20 +359,9 @@ class Basic():
         Args:
             wavemode (str): Wave mode ('O' or 'X')
             solver (str): Solver type
-        """
-        self.__set_solver_path_and_datastruct(wavemode=wavemode, solver=solver)
-        self.fw2d = ctypes.CDLL(self.fw2d_path)
-        self.fw2d.maxwell_2d_omode.argtypes = [ctypes.POINTER(InputData)]
-        self.fw2d.maxwell_2d_omode.restype = ctypes.c_int
+        """      
         
-    def __set_solver_path_and_datastruct(self, wavemode, solver):
-        """
-        Set the path to the C solver library.
-        
-        Args:
-            wavemode (str): Wave mode ('O' or 'X')
-            solver (str): Solver type
-        """
+        # ===== SETTING WAVE-Mode for simulations =========
         if not isinstance(wavemode, str):
             raise TypeError('The expected type for the wavemode input is str.')
         if wavemode == "O":
@@ -356,16 +370,24 @@ class Basic():
         else:
             raise ValueError('The requested wave type is not supported. The class is set up to support X or O mode waves.')
             
+        # ===== SETTING Solver and Datastruct for simulations =========    
         if not isinstance(solver, str):
             raise TypeError('The expected type for the solver input is str.')
+            
         if solver == 'basic':
             self.data = InputData()
             self.solver = solver
-            solver_path = '_ezf'
+            solver_def = '_ezf'
+            self.fw2d_path = os.path.join(os.path.dirname(__file__), '..', 
+                                          'fw2d', mode_path+solver_def+'.dll')
+            self.fw2d = ctypes.CDLL(self.fw2d_path)
+            self.fw2d.maxwell_2d_omode.argtypes = [ctypes.POINTER(InputData)]
+            self.fw2d.maxwell_2d_omode.restype = ctypes.c_int
+            
         elif solver == 'ez_evo':
             self.data = InputData()
             self.solver = solver
-            solver_path = '_ezf_time'
+            solver_def = '_ezf_time'
         elif solver == 'multi_ant':
             pass
         elif solver == 'multi_evo':
@@ -373,8 +395,7 @@ class Basic():
         else:
             raise ValueError('The requested solver type is not supported. Please consult documentation.')
    
-        self.fw2d_path = os.path.join(os.path.dirname(__file__), '..', 
-                                      'fw2d', mode_path+solver_path+'.dll')
+        
         
     def __set_outputdata(self, solver):
         """
