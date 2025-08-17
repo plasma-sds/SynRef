@@ -47,28 +47,30 @@ class Doppler(Basic):
         self.__create_config()
         self.__initialize(density_evolution, ez_evolution)
         
-        self.__axis_reallocation()
+        self.__positional_correction()
         
-        
-    def __axis_reallocation(self):
+    def __positional_correction(self):
         lib = self.library
-        self.x_abs = np.linspace(-lib["field_width"][1], -lib["field_width"][0],
-                                 len(self.x)) + lib["antenna_pos"][0]
-        self.y_abs = np.linspace(*lib["field_height"], 
-                                 len(self.y)) + lib["antenna_pos"][2]
+        Lx, Ly = lib["field_width"], lib["field_height"]
+        x,y,z = lib["antenna_pos"]
+        r, theta = np.sqrt(x**2 + y**2), np.arctan2(y, x)
         
-        self.X_abs = np.linspace(-lib["field_width"][1], -lib["field_width"][0],
-                                 self.nx) + lib["antenna_pos"][0]
-        self.Y_abs = np.linspace(*lib["field_height"], 
-                                 self.ny) + lib["antenna_pos"][2]
+        x_abs = np.linspace(r - Lx[0] , r - Lx[1],  len(self.x) )
+        y_abs = np.linspace( *(Ly + z),             len(self.y) )
         
-        self.X = np.linspace(0, lib["field_width"][1] - lib["field_width"][0],
-                             self.nx)
-        self.Y = np.linspace(0, lib["field_height"][1]-lib["field_height"][0],
-                             self.ny)
+        X_abs = np.linspace(r - Lx[0] , r - Lx[1],      self.nx )
+        Y_abs = np.linspace( *(Ly + z),                 self.ny )
         
-    # def __angle_conversion(self):
-    #     r=0
+        x = np.linspace(0, Lx[1] - Lx[0], len(self.x) )
+        y = np.linspace(0, Ly[1] - Ly[0], len(self.y) )
+        
+        X = np.linspace(0, Lx[1] - Lx[0],    self.nx  )
+        Y = np.linspace(0, Ly[1] - Ly[0],    self.ny  )
+        
+        setup_map = {"x": x, "y": y, "x_abs": x_abs, "y_abs": y_abs,
+                     "X": X, "Y": Y, "X_abs": X_abs, "Y_abs": Y_abs,
+                     "antenna_XYZ": np.array([x,y,z]),
+                     "antenna_RTZ": np.array([r, theta, z])}
     
     def __create_config(self, ref = "default"):
         if (ref == "default"):
@@ -110,6 +112,7 @@ class Doppler(Basic):
         if frequency_indices == "default": 
             frequencies = self.library["frequency"]
         else: frequencies = self.library["frequency"][frequency_indices]
+        print(frequencies)
         
         if con_filename == True: func.get_frequency_sweep(self, frequencies)
         else: func.get_frequency_sweep(self, frequencies,
