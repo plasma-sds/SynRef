@@ -385,18 +385,43 @@ class Basic():
             self.fw2d.maxwell_2d_omode.restype = ctypes.c_int
             
         elif solver == 'ez_evo':
-            self.data = InputData()
+            self.data = InputDataTime()
             self.solver = solver
             solver_def = '_ezf_time'
+            self.fw2d_path = os.path.join(os.path.dirname(__file__), '..', 
+                                          'fw2d', mode_path+solver_def+'.dll')
+            self.fw2d = ctypes.CDLL(self.fw2d_path)
+            self.fw2d.maxwell_2d_omode.argtypes = [ctypes.POINTER(InputDataTime)]
+            self.fw2d.maxwell_2d_omode.restype = ctypes.c_int
+            self.__make_eztime()
         elif solver == 'multi_ant':
             pass
         elif solver == 'multi_evo':
             pass
         else:
             raise ValueError('The requested solver type is not supported. Please consult documentation.')
+            
+    def __make_eztime(self):
+        """
+        Create a default uniform electric field of 1 V/m
+        
+        
+        b0 = (ctypes.POINTER(ctypes.c_double) * self.data.ny)()  # Create an array of pointers (for each row)
+        for j in range(self.data.ny):
+            b0[j] = (ctypes.c_double * self.data.nx)()  # Create the row with ny elements
+            for i in range(self.data.nx):
+                b0[j][i] = 2.5
+        
+        """
+        ez_time = (ctypes.POINTER(ctypes.c_double) * self.data.nt)()  # Create an array of pointers (for each time insatnce)
+        for time_index in range(self.data.nt):
+            ez_time[time_index] = (ctypes.POINTER(ctypes.c_double) * self.data.ny)()  # Create a pointer array for each row
+            for j in range(self.data.ny):
+                ez_time[time_index][j] = (ctypes.c_double * self.data.nx)()  # Create the row with ny elements
+                for i in range(self.data.nx):
+                    ez_time[time_index][j][i] = 1
+        self.data.ez_time = ez_time
    
-        
-        
     def __set_outputdata(self, solver):
         """
         Initialize output arrays for antenna amplitude and phase.
