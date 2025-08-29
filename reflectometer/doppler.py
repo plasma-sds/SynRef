@@ -6,11 +6,12 @@ Created on Mon Jul 28 13:55:33 2025
 """
 import numpy as np
 import sys
-import os
-sys.path.append(os.path.dirname(__file__))
+from os.path import dirname
+from os.path import join
+from os import mkdir
+sys.path.append(dirname(__file__))
 
 from reflectometer.basic import Basic
-import reflectometer.file_management as fima
 import reflectometer.functions as func
 
 class Doppler(Basic):
@@ -39,14 +40,38 @@ class Doppler(Basic):
              "reflection_distance": 'default',
              "frequency":    np.arange(25, 40 + 0.1, 1) *1e9, # [GHz]
              "field_width":  np.array([0, 100e-3]), 
-             "field_height": np.array([-150e-3, 150e-3]),
+             "field_height": np.array([-150e-3 - 16.24e-3, 150e-3 + 16.24e-3]),
              "antenna_pos":  np.array([2.0441, 6.2912, -0.146]), 
              "LOS":          np.array([18, -3.7, 0]),
              "beam_waist": 0.015} }
     
-    def __init__(self, library = "W7X QMR-V1",
+    def __init__(self, library = "W7X QMR-V1", t = "default",
                  density_evolution = ["default"], ez_evolution = ["default"],
                  working_directory = ''):
+        """
+        
+
+        Parameters
+        ----------
+        library : TYPE, optional
+            DESCRIPTION. The default is "W7X QMR-V1".
+        density_evolution : TYPE, optional
+            DESCRIPTION. The default is ["default"].
+        ez_evolution : TYPE, optional
+            DESCRIPTION. The default is ["default"].
+        working_directory : TYPE, optional
+            DESCRIPTION. The default is ''.
+
+        Raises
+        ------
+        ValueError
+            DESCRIPTION.
+
+        Returns
+        -------
+        None.
+
+        """
         self.path = working_directory
         
         if   isinstance(library, dict):
@@ -165,7 +190,12 @@ class Doppler(Basic):
     def full_sweep(self, frequency_indices = "default", 
                    density_indices = "default",
                    con_filename = False, path = "default"):
+        
         if path == "default": path = self.path
+        if con_filename != False: 
+            path = join(path, "config_files")
+            try: mkdir(path)
+            except: pass
         
         if frequency_indices == "default": 
             frequencies = self.library["frequency"]
@@ -184,7 +214,7 @@ class Doppler(Basic):
     
     # def plot_section():
     
-    # def plot_wave():
+    # def plot_wave( frame = 0 ):
         
             
             
