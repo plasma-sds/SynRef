@@ -20,7 +20,7 @@ class Doppler(Basic):
             {"wavemode": 'O', "solver": 'basic', 
              "reflection_distance": 'default',
              "frequency":    np.arange(50, 70 + 0.1, 1) *1e9, # [GHz]
-             "field_width":  np.array([0, 200e-3]), 
+             "field_width":  np.array([0, 100e-3]), 
              "field_height": np.array([-150e-3, 150e-3]),
              "antenna_pos":  np.array([2.0441, 6.2912, -0.146]), 
              "LOS":          np.array([18, -3.7, 0]),
@@ -29,14 +29,25 @@ class Doppler(Basic):
             {"wavemode": 'O', "solver": 'basic', 
              "reflection_distance": 'default',
              "frequency":    np.arange(60, 90 + 0.1, 1) *1e9, # [GHz]
-             "field_width":  np.array([0, 200e-3]), 
+             "field_width":  np.array([0, 100e-3]), 
              "field_height": np.array([-150e-3, 150e-3]),
              "antenna_pos":  np.array([2.0441, 6.2912, -0.146]), 
              "LOS":          np.array([18, -3.7, 0]),
-             "beam_waist": 0.015}}
+             "beam_waist": 0.015},
+        "test":
+            {"wavemode": 'O', "solver": 'basic', 
+             "reflection_distance": 'default',
+             "frequency":    np.arange(25, 40 + 0.1, 1) *1e9, # [GHz]
+             "field_width":  np.array([0, 100e-3]), 
+             "field_height": np.array([-150e-3, 150e-3]),
+             "antenna_pos":  np.array([2.0441, 6.2912, -0.146]), 
+             "LOS":          np.array([18, -3.7, 0]),
+             "beam_waist": 0.015} }
     
     def __init__(self, library = "W7X QMR-V1",
-                 density_evolution = "default", ez_evolution = "default"):
+                 density_evolution = ["default"], ez_evolution = ["default"],
+                 working_directory = ''):
+        self.path = working_directory
         
         if   isinstance(library, dict):
             self.library = library
@@ -44,8 +55,11 @@ class Doppler(Basic):
             self.library = self.setup_library[library]
         # else: raise ValueError
         
+        self.density_evolution = density_evolution
+        self.ez_evolution = ez_evolution
+        
         self.__create_config()
-        self.__initialize(density_evolution, ez_evolution)
+        self.__initialize()
         
         self.__positional_correction()
         
@@ -54,6 +68,7 @@ class Doppler(Basic):
         Lx, Ly = lib["field_width"], lib["field_height"]
         x,y,z = lib["antenna_pos"]
         r, theta = np.sqrt(x**2 + y**2), np.arctan2(y, x)
+        XYZ, RTZ = np.array([x,y,z]), np.array([r, theta, z])
         
         x_abs = np.linspace(r - Lx[0] , r - Lx[1],  len(self.x) )
         y_abs = np.linspace( *(Ly + z),             len(self.y) )
@@ -69,8 +84,7 @@ class Doppler(Basic):
         
         setup_map = {"x": x, "y": y, "x_abs": x_abs, "y_abs": y_abs,
                      "X": X, "Y": Y, "X_abs": X_abs, "Y_abs": Y_abs,
-                     "antenna_XYZ": np.array([x,y,z]),
-                     "antenna_RTZ": np.array([r, theta, z])}
+                     "antenna_XYZ": XYZ, "antenna_RTZ": RTZ}
     
     def __create_config(self, ref = "default"):
         if (ref == "default"):
@@ -94,48 +108,64 @@ class Doppler(Basic):
     def __relative_axis(self):
         lib = self.library
         
-    def __initialize(self, density_evolution, ez_field):
+    def __initialize(self):
         lib = self.library
         Basic.__init__(self,
             x = np.linspace(0, lib["field_width"][1] - lib["field_width"][0],
-                            density_evolution.shape[2]),
+                            self.density_evolution.shape[2]),
             y = np.linspace(0, lib["field_height"][1]-lib["field_height"][0],
-                            density_evolution.shape[1]),
-            density = density_evolution[0], b_field = ez_field, **self.config)
+                            self.density_evolution.shape[1]),
+            density = self.density_evolution[0], 
+            b_field = self.ez_evolution[0],    **self.config)
         
     def get_libraries(self): return self.setup_library
         
     
-    def frequency_sweep(self, frequency_indices = "default",
-                        con_filename = False, path = ''):
+    def frequency_sweep(self, frequency_indices = "default", 
+                        density_index = "default",
+                        con_filename = False, path = "default"):
+        if path == "default": path = self.path
         
         if frequency_indices == "default": 
             frequencies = self.library["frequency"]
         else: frequencies = self.library["frequency"][frequency_indices]
-        print(frequencies)
         
-        if con_filename == True: func.get_frequency_sweep(self, frequencies)
-        else: func.get_frequency_sweep(self, frequencies,
-                                       con_filename=con_filename, path=path)
+        if density_index != "default": 
+            self.update_density(self.density_evolution[density_index], 
+                                self.x, self.y, reflection_distance='default')
+        
+        if con_filename == True: 
+            con_filename = "config_{dens:04d}_{freq}.json".format(
+                dens=density_index, freq="{freq:03d}")
+            
+        func.get_frequency_sweep(self, frequencies,
+                                 con_filename=con_filename, path=path)
             
         
-    def density_sweep(self, density_indices = "default",
-                      con_filename = False, path = ''):
+    def density_sweep(self, frequency_index = "default", 
+                      density_indices = "default",
+                      con_filename = False, path = "default"):
+        if path == "default": path = self.path
         
         if density_indices == "default": 
             density_indices = np.arange(self.density_evolution.shape[0])
         
+        if frequency_index != "default":
+            self.update_frequency(self.library["frequency"][frequency_index])
+        
         if con_filename == True: 
-            func.get_density_sweep(self, self.density_evolution, 
-                                   self.x, self.y, density_indices)
-        else: func.get_density_sweep(self, self.density_evolution, 
-                                     self.x, self.y, density_indices,
-                                     con_filename=con_filename, path=path)
+            con_filename = "config_{dens}_{freq:03d}.json".format(
+                dens="{dens:03d}", freq=frequency_index)
+            
+        func.get_density_sweep(self, self.density_evolution, 
+                               self.x, self.y, density_indices,
+                               con_filename=con_filename, path=path)
         
     
     def full_sweep(self, frequency_indices = "default", 
                    density_indices = "default",
-                   con_filename = False, path = ''):
+                   con_filename = False, path = "default"):
+        if path == "default": path = self.path
         
         if frequency_indices == "default": 
             frequencies = self.library["frequency"]
@@ -145,11 +175,11 @@ class Doppler(Basic):
             density_indices = np.arange(self.density_evolution.shape[0])
         
         if con_filename == True: 
-            func.get_full_sweep(self, self.density_evolution, self.x, self.y,
-                                frequencies, density_indices)
-        else: func.get_full_sweep(self, self.density_evolution, self.x, self.y,
-                                  frequencies, density_indices,
-                                  con_filename=con_filename, path=path)
+            con_filename = "config_{dens:04d}_{freq:03d}.json"
+            
+        func.get_full_sweep(self, self.density_evolution, self.x, self.y,
+                            frequencies, density_indices,
+                            con_filename=con_filename, path=path)
     
     
     # def plot_section():

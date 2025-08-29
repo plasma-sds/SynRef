@@ -310,7 +310,7 @@ def is_Xmode_propagating(frequency, density, bfield):
 
 
 def get_frequency_sweep(reflectometer, frequencies,
-                        con_filename = "config_0000_{0:03d}.json",
+                        con_filename = "config_0000_{freq:03d}.json",
                         path = ''):
     """
     Perform a frequency sweep using a Basic reflectometer and return antenna output data.
@@ -362,10 +362,10 @@ def get_frequency_sweep(reflectometer, frequencies,
         if con_filename != False:
             # Create a config file, which contains input data, and scalar outputs
             config_file = fm.export_dict(fm.create_config(reflectometer),
-                                         con_filename.format(freq_ind),
+                                         con_filename.format(freq=freq_ind),
                                          path=path)
             # Print the progress of the calculation
-            print(con_filename.format(freq_ind), datetime.now()-start)
+            print(con_filename.format(freq=freq_ind), datetime.now()-start)
         else:
             print(freq_ind, datetime.now()-start)
         
@@ -379,7 +379,7 @@ def get_frequency_sweep(reflectometer, frequencies,
 
 
 def get_density_sweep(reflectometer, density, x, y, frames,
-                      con_filename = "config_{0:04d}_000.json",
+                      con_filename = "config_{dens:04d}_000.json",
                       path = ''):
     """
     Perform a density sweep using a Basic reflectometer and return antenna output data.
@@ -439,10 +439,10 @@ def get_density_sweep(reflectometer, density, x, y, frames,
         if con_filename != False:
             # Create a config file, which contains input data, and scalar outputs
             config_file = fm.export_dict(fm.create_config(reflectometer),
-                                         con_filename.format(frame),
+                                         con_filename.format(dens=frame),
                                          path=path)
             # Print the progress of the calculation
-            print(con_filename.format(frame), datetime.now()-start)
+            print(con_filename.format(dens=frame), datetime.now()-start)
         else:
             print(frame, datetime.now()-start)
             
@@ -457,7 +457,7 @@ def get_density_sweep(reflectometer, density, x, y, frames,
 
 
 def get_full_sweep(reflectometer, density, x, y, frequencies, frames, 
-                   con_filename = "config_{0:04d}_{1:03d}.json",
+                   con_filename = "config_{dens:04d}_{freq:03d}.json",
                    path = ''):
     """
     Perform both density and frequency sweeps using a Basic reflectometer and return antenna output data.
@@ -519,10 +519,10 @@ def get_full_sweep(reflectometer, density, x, y, frequencies, frames,
                 if con_filename != False:
                     # Create a config file, which contains input data, and scalar outputs
                     config_file = fm.export_dict(fm.create_config(reflectometer),
-                                                 con_filename.format(frame, freq_ind),
+                                                 con_filename.format(dens=frame, freq=freq_ind),
                                                  path=path)
                     # Print the progress of the calculation
-                    print(con_filename.format(frame, freq_ind), datetime.now()-start)
+                    print(con_filename.format(dens=frame, freq=freq_ind), datetime.now()-start)
                 else:
                     print(frame, freq_ind, datetime.now()-start)
                 
