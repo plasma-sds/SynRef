@@ -12,7 +12,6 @@ electromagnetic wave propagation solvers.
 import os
 import ctypes
 import numpy
-from .conversions import from_unit_to_centi
 import scipy.constants as constant
 import matplotlib.pyplot as plt
 from scipy.interpolate import RectBivariateSpline
@@ -36,7 +35,6 @@ class InputData(ctypes.Structure):                                  #Input data 
         ("angle", ctypes.c_double),                                         # Angle of propagation in [deg]
         ("b0", ctypes.POINTER(ctypes.POINTER(ctypes.c_double))),            # Magnetic field
         ("ne", ctypes.POINTER(ctypes.POINTER(ctypes.c_double))),            # Plasma density field
-        ("ez_final", ctypes.POINTER(ctypes.POINTER(ctypes.c_double))),      # Final version of the ez field
         ("ampl_ant", ctypes.POINTER(ctypes.c_double)),                      # E amplitude at the antenna
         ("fase_ant", ctypes.POINTER(ctypes.c_double)),                      # Phase at the antenna
     ]
@@ -89,7 +87,7 @@ class Basic():
             reflection_distance (str or float): Reflection distance in meters or 'default'
         """
         
-        self.__set_solver_and_datastruct(wavemode=wavemode, solver=solver)
+        self.data = InputData()
         self.__set_frequency(frequency)
         self.__set_frequency_dependence()
         self.__set_density_field(x=x, y=y, density=density)
@@ -98,6 +96,7 @@ class Basic():
         self.__set_simulation_timesteps(reflection_distance=reflection_distance)
         self.__set_beam_waist(waist=beam_waist)
         self.__set_antenna_pos(antenna_pos=antenna_pos)
+        self.__set_solver(wavemode=wavemode, solver=solver)
         self.__set_outputdata(solver=solver)
         
   
@@ -327,7 +326,7 @@ class Basic():
             self.antenna_pos = antenna_pos
         self.data.yante = int(self.ny - (self.antenna_pos - self.y[0]) // self.dx)
         
-    def __set_solver_and_datastruct(self, wavemode, solver):
+    def __set_solver(self, wavemode, solver):
         """
         Set up the C solver library.
         
@@ -335,12 +334,12 @@ class Basic():
             wavemode (str): Wave mode ('O' or 'X')
             solver (str): Solver type
         """
-        self.__set_solver_path_and_datastruct(wavemode=wavemode, solver=solver)
+        self.__set_solver_path(wavemode=wavemode, solver=solver)
         self.fw2d = ctypes.CDLL(self.fw2d_path)
         self.fw2d.maxwell_2d_omode.argtypes = [ctypes.POINTER(InputData)]
         self.fw2d.maxwell_2d_omode.restype = ctypes.c_int
         
-    def __set_solver_path_and_datastruct(self, wavemode, solver):
+    def __set_solver_path(self, wavemode, solver):
         """
         Set the path to the C solver library.
         
@@ -359,13 +358,10 @@ class Basic():
         if not isinstance(solver, str):
             raise TypeError('The expected type for the solver input is str.')
         if solver == 'basic':
-            self.data = InputData()
-            self.solver = solver
-            solver_path = '_ezf'
+            self.solver=solver
+            solver_path = ''
         elif solver == 'ez_evo':
-            self.data = InputData()
-            self.solver = solver
-            solver_path = '_ezf_time'
+            pass
         elif solver == 'multi_ant':
             pass
         elif solver == 'multi_evo':
@@ -399,8 +395,8 @@ class Basic():
             frequency (float): New wave frequency in Hz
         """
         x_old, y_old, time_old = self.get_axis()
-        magnetic = self.get_fields(kind='magnetic')
-        density = self.get_fields(kind='density')
+        magnetic = self.get_input_fields(kind='magnetic')
+        density = self.get_input_fields(kind='density')
         
         self.__set_frequency(frequency=frequency)
         self.__set_frequency_dependence()
@@ -422,7 +418,7 @@ class Basic():
             reflection_distance (str or float): Reflection distance or 'default'
         """
         x_old, y_old, time_old = self.get_axis()
-        magnetic = self.get_fields(kind='magnetic')
+        magnetic = self.get_input_fields(kind='magnetic')
         
         self.__set_density_field(x=x, y=y, density=density)
         self.__set_magnetic_field(x=x_old, y=y_old, b_field=magnetic)
@@ -479,18 +475,18 @@ class Basic():
         """
         return self.data.ampl_ant, self.data.fase_ant
     
-    def get_fields(self, kind='density'):
+    def get_input_fields(self, kind='density'):
         """
         Get the input field data as a numpy array and return it.
         
         Args:
-            kind (str): Field type ('density', 'magnetic' or 'electric')
+            kind (str): Field type ('density' or 'magnetic')
             
         Returns:
             numpy.ndarray: 2D array containing the field data
             
         Raises:
-            ValueError: If kind is not 'density' , 'magnetic' or 'electric'
+            ValueError: If kind is not 'density' or 'magnetic'
         """
         field = numpy.zeros((self.data.ny, self.data.nx))
         for y_index in range(self.data.ny):
@@ -499,8 +495,6 @@ class Basic():
                     field[y_index, x_index] = self.data.ne[y_index][x_index]
                 elif kind == 'magnetic':
                     field[y_index, x_index] = self.data.b0[y_index][x_index]
-                elif kind == 'electric':
-                    field[y_index, x_index] = self.data.ez_final[y_index][x_index]
                 else:
                     raise ValueError('The requested output type is not supported. Supported types are: <density> or <magnetic>')
         return field
@@ -520,54 +514,28 @@ class Basic():
         time = numpy.arange(self.data.nt)*self.dt
         return x, y, time
     
-    def plot_results(self, title=''):
+    def plot_density(self, title=''):
         """
-        Plot the plasma density field, the magnetic field and the electic field.
+        Plot the plasma density field.
         
         Args:
             title (str): Optional title for the plot
         """
         x, y, time = self.get_axis()
-        density = self.get_fields()
-        ez = self.get_fields(kind='electric')
-        fig, ax = plt.subplots(nrows=1, ncols=2, figsize=(14,6))
+        density = self.get_input_fields()
+        fig, ax = plt.subplots(figsize=(15,4.5))
         try:
-            img_dens = ax[0].contourf(from_unit_to_centi(x), 
-                                      from_unit_to_centi(y), 
-                                      density, levels=200, cmap='plasma')
+            dens = ax.contourf(x, y, density, levels=200, cmap='plasma')
         except TypeError:
-            img_dens = ax[0].contourf(from_unit_to_centi(x), 
-                                      from_unit_to_centi(y),
-                                      density.T, levels=200, cmap='plasma')
-        ax[0].set_title("Density field"+title, fontsize=14, fontweight = 'bold')
-        ax[0].tick_params(axis='both', labelsize= 12)
-        ax[0].set_aspect('equal', adjustable='box')
-        ax[0].set_xlabel('X axis [cm]', fontsize=14, fontweight = 'bold')
-        ax[0].set_ylabel('Y axis [cm]', fontsize=14, fontweight = 'bold')
+            dens = ax.contourf(x, y, density.T, levels=200, cmap='plasma')
+        ax.set_title("Density field for "+title, fontsize=14, fontweight = 'bold')
+        ax.tick_params(axis='both', labelsize= 12)
+        ax.set_aspect('equal', adjustable='box')
+        ax.set_xlabel('X axis [m]', fontsize=14, fontweight = 'bold')
+        ax.set_ylabel('Y axis [m]', fontsize=14, fontweight = 'bold')
         
-        col = fig.colorbar(img_dens, ax=ax[0])
+        col = fig.colorbar(dens, ax=ax)
         col.ax.tick_params(labelsize= 12, which='both')
         col.ax.set_ylabel('Density [m-3]',fontsize=12, fontweight = 'bold')
         
-        try:
-            img_ez = ax[1].contourf(from_unit_to_centi(x), 
-                                    from_unit_to_centi(y),
-                                    ez, levels=200, cmap="RdBu_r",
-                                    vmin=-numpy.max(ez), vmax=numpy.max(ez))
-        except TypeError:
-            img_ez = ax[1].contourf(from_unit_to_centi(x), 
-                                    from_unit_to_centi(y),
-                                    ez.T, levels=200, cmap="RdBu_r",
-                                    vmin=-numpy.max(ez), vmax=numpy.max(ez))
-        ax[1].set_title("Electric field"+title, fontsize=14, fontweight = 'bold')
-        ax[1].tick_params(axis='both', labelsize= 12)
-        ax[1].set_aspect('equal', adjustable='box')
-        ax[1].set_xlabel('X axis [cm]', fontsize=14, fontweight = 'bold')
-        
-        col = fig.colorbar(img_ez, ax=ax[1])
-        col.ax.tick_params(labelsize= 12, which='both')
-        col.ax.set_ylabel('Electric Field [V/m]',fontsize=12, fontweight = 'bold')
-        
-        
-        plt.tight_layout()
         plt.show()
