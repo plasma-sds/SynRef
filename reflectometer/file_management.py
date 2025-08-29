@@ -10,6 +10,10 @@ from os import mkdir
 from shutil import copy
 from os.path import join
 from datetime import datetime
+from pathlib import Path
+from h5py import File
+
+import numpy as np
 
 # _____________________________________________________________________________
 # save the input and output parameters of basic reflectometer
@@ -143,3 +147,113 @@ def create_directory(simulation_name, path = '', file = "default"):
             except: print("Incorrectly referenced file:\n", f)
     elif file != "default": copy(file, path)
     return path
+
+
+def save_ref_signal(folder, filename = "config_{dens:04d}_{freq:03d}.json",
+                    signal_path = "default", signal_filename = "default",
+                    time = "default"):
+    """
+    Extracting the signal field of the reflectometer from the raw config files.
+    
+    Parameters
+    ----------
+    filepath : str or pathlib.Path
+        Directory containing the configuration JSON files.
+    filename : str, optional
+        Filename template used to locate configuration files. It must contain
+        placeholders for density (`dens`) and frequency (`freq`) indices.
+        The default is "config_{dens:04d}_{freq:03d}.json".
+    signal_path : str or pathlib.Path, optional
+        Output directory for the generated HDF5 signal field file.
+        The default is "default", which uses the same directory as `path`.
+    signal_filename : str, optional
+        Name of the output HDF5 file containing the processed signal data.
+        The default is "default", which saves to "signal_field.h5".
+    time : array-like or str, optional
+        Time values corresponding to the density indices. If "default",
+        it is generated as `dens_inds * 1e-6`.
+    
+    Returns
+    -------
+    None.
+        The function writes the processed amplitude and phase data, along with
+        frequency and time information, into an HDF5 file.
+    
+    """
+    path = join(folder, "config_files")
+    
+    # Collect all matching filenames, find the dens and freq indices
+    print(path)
+    filenames = sorted([p.name for p in Path(path).glob("config_????_???.json")])
+    freq_start, freq_end = int(filenames[0][ 7:11]), int(filenames[-1][ 7:11])+1
+    dens_start, dens_end = int(filenames[0][12:15]), int(filenames[-1][12:15])+1
+    
+    # Read all config data into the configs dictionary
+    dens_inds = np.arange(freq_start, freq_end)
+    freq_inds = np.arange(dens_start, dens_end)
+    n_dens, n_freq = len(dens_inds), len(freq_inds)
+    configs = {}
+    for dens_ind in dens_inds:
+        for freq_ind in freq_inds:
+            actual = filename.format(dens=dens_ind, freq=freq_ind)
+            configs.update({actual: import_dict(actual, path=path)})
+    
+    # Convert: frequency index -> frequency values, frames -> time
+    freqs = np.linspace(configs[filenames[0]]["ref_input"]["frequency"]/1e9, 
+                configs[filenames[-1]]["ref_input"]["frequency"]/1e9, n_freq,
+                dtype = np.int16)
+    if (time == "default"): time = dens_inds * 1e-6
+    
+    # Extract the amplitude and phase information into the freq-dens field
+    amplitude_array = np.zeros((n_dens, n_freq))
+    phase_array = np.zeros((n_dens, n_freq))
+    for i, dens_ind in enumerate(dens_inds):
+        for j, freq_ind in enumerate(freq_inds):
+            actual = configs[filename.format(dens=dens_ind, freq=freq_ind)]
+            amplitude_array[i, j] = actual["ref_output"]["amplitude"]
+            phase_array[i, j] = actual["ref_output"]["phase"]
+    
+    # Export the data into a h5 file:
+    if (signal_filename == "default"): signal_filename = "signal_field.h5"
+    if (signal_path == "default"): signal_path = folder
+    signal_file = join(signal_path, signal_filename)
+        
+    f = File(signal_file, "w")
+    f.create_dataset("frames", data = dens_inds, compression="gzip")
+    f.create_dataset("time", data = time, compression="gzip")
+    f.create_dataset("frequency_indices", data = freq_inds, compression="gzip")
+    f.create_dataset("frequencies", data = freqs, compression="gzip")
+    f.create_dataset("amplitude_field", data = amplitude_array, compression="gzip")
+    f.create_dataset("phase_field", data = phase_array, compression="gzip")
+
+
+
+def read_ref_signal(path, signal_filename = "signal_field.h5"):
+    """
+    Import the created signal field file from HDF5 format.
+
+    Parameters
+    ----------
+    path : str or pathlib.Path
+        Directory containing the HDF5 signal file.
+    signal_filename : str, optional
+        Name of the HDF5 file to be read.
+        The default is "signal_field.h5".
+
+    Returns
+    -------
+    dict
+        Dictionary where keys correspond to dataset names
+        (e.g., "frames", "time", "frequency_indices", "frequencies",
+        "amplitude_field", "phase_field") and values are the
+        corresponding NumPy arrays.
+    """
+    file = join(path, signal_filename)
+    with File(file, "r") as f:
+        return {key: f[key][()] for key in f.keys()}
+    
+    
+    
+    
+    
+    
