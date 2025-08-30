@@ -40,7 +40,7 @@ class Doppler(Basic):
              "reflection_distance": 'default',
              "frequency":    np.arange(25, 40 + 0.1, 1) *1e9, # [GHz]
              "field_width":  np.array([0, 100e-3]), 
-             "field_height": np.array([-150e-3 - 16.24e-3, 150e-3 + 16.24e-3]),
+             "field_height": np.array([-150e-3 + 16.24e-3, 150e-3 + 16.24e-3]),
              "antenna_pos":  np.array([2.0441, 6.2912, -0.146]), 
              "LOS":          np.array([18, -3.7, 0]),
              "beam_waist": 0.015} }
@@ -96,10 +96,10 @@ class Doppler(Basic):
         XYZ, RTZ = np.array([x,y,z]), np.array([r, theta, z])
         
         x_abs = np.linspace(r - Lx[0] , r - Lx[1],  len(self.x) )
-        y_abs = np.linspace( *(Ly + z),             len(self.y) )
+        y_abs = np.linspace(z + Ly[0] , z + Ly[1],  len(self.y) )
         
         X_abs = np.linspace(r - Lx[0] , r - Lx[1],      self.nx )
-        Y_abs = np.linspace( *(Ly + z),                 self.ny )
+        Y_abs = np.linspace(z + Ly[0] , z + Ly[1],      self.ny )
         
         x = np.linspace(0, Lx[1] - Lx[0], len(self.x) )
         y = np.linspace(0, Ly[1] - Ly[0], len(self.y) )
@@ -107,9 +107,9 @@ class Doppler(Basic):
         X = np.linspace(0, Lx[1] - Lx[0],    self.nx  )
         Y = np.linspace(0, Ly[1] - Ly[0],    self.ny  )
         
-        setup_map = {"x": x, "y": y, "x_abs": x_abs, "y_abs": y_abs,
-                     "X": X, "Y": Y, "X_abs": X_abs, "Y_abs": Y_abs,
-                     "antenna_XYZ": XYZ, "antenna_RTZ": RTZ}
+        self.setup_map = {"x": x, "y": y, "x_abs": x_abs, "y_abs": y_abs,
+                          "X": X, "Y": Y, "X_abs": X_abs, "Y_abs": Y_abs,
+                          "antenna_XYZ": XYZ, "antenna_RTZ": RTZ}
     
     def __create_config(self, ref = "default"):
         if (ref == "default"):
