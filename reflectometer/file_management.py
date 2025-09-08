@@ -183,7 +183,6 @@ def save_ref_signal(folder, filename = "config_{dens:04d}_{freq:03d}.json",
     path = join(folder, "config_files")
     
     # Collect all matching filenames, find the dens and freq indices
-    print(path)
     filenames = sorted([p.name for p in Path(path).glob("config_????_???.json")])
     freq_start, freq_end = int(filenames[0][ 7:11]), int(filenames[-1][ 7:11])+1
     dens_start, dens_end = int(filenames[0][12:15]), int(filenames[-1][12:15])+1

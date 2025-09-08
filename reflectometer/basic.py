@@ -86,6 +86,8 @@ class Basic():
             angle (float): Propagation angle in degrees
             reflection_distance (str or float): Reflection distance in meters or 'default'
         """
+        self.input_density = density
+        self.input_b_field = b_field
         
         self.data = InputData()
         self.__set_frequency(frequency)
@@ -394,20 +396,19 @@ class Basic():
         Args:
             frequency (float): New wave frequency in Hz
         """
-        x_old, y_old, time_old = self.get_axis()
-        magnetic = self.get_input_fields(kind='magnetic')
-        density = self.get_input_fields(kind='density')
+        b_field = self.input_b_field
+        density = self.input_density
         
         self.__set_frequency(frequency=frequency)
         self.__set_frequency_dependence()
-        self.__set_density_field(x=x_old, y=y_old, density=density)
-        self.__set_magnetic_field(x=x_old, y=y_old, b_field=magnetic)
+        self.__set_density_field(x=self.x, y=self.y, density=density)
+        self.__set_magnetic_field(x=self.x, y=self.y, b_field=b_field)
         self.__set_angle_antenna(angle=self.angle)
         self.__set_simulation_timesteps(reflection_distance=self.reflection_distance)
         self.__set_beam_waist(waist=self.beam_waist_si)
         self.__set_antenna_pos(antenna_pos=self.antenna_pos)        
         
-    def update_density(self, density, x, y, reflection_distance='default'):
+    def update_density(self, density, reflection_distance='default'):
         """
         Update the plasma density field and recalculate dependent parameters.
         
@@ -416,12 +417,39 @@ class Basic():
             x (numpy.ndarray): X-axis coordinates
             y (numpy.ndarray): Y-axis coordinates
             reflection_distance (str or float): Reflection distance or 'default'
+            
+        Density update is only possible if its shape remains identical!
         """
-        x_old, y_old, time_old = self.get_axis()
-        magnetic = self.get_input_fields(kind='magnetic')
+        b_field = self.input_b_field
+        self.input_density = density
         
-        self.__set_density_field(x=x, y=y, density=density)
-        self.__set_magnetic_field(x=x_old, y=y_old, b_field=magnetic)
+        self.__set_density_field(x=self.x, y=self.y, density=density)
+        self.__set_magnetic_field(x=self.x, y=self.y, b_field=b_field)
+        
+        self.__set_angle_antenna(angle=self.angle)
+        self.__set_simulation_timesteps(reflection_distance=reflection_distance)
+        self.__set_beam_waist(waist=self.beam_waist_si)
+        self.__set_antenna_pos(antenna_pos=self.antenna_pos)
+        
+        
+        
+    def update_b_field(self, b_field, reflection_distance='default'):
+        """
+        Update the plasma b_field and recalculate dependent parameters.
+        
+        Args:
+            b_field (numpy.ndarray): New plasma b_field data
+            x (numpy.ndarray): X-axis coordinates
+            y (numpy.ndarray): Y-axis coordinates
+            reflection_distance (str or float): Reflection distance or 'default'
+            
+        B_field update is only possible if its shape remains identical!
+        """
+        density = self.input_density
+        self.input_b_field = b_field
+        
+        self.__set_density_field(x=self.x, y=self.y, density=density)
+        self.__set_magnetic_field(x=self.x, y=self.y, b_field=b_field)
         
         self.__set_angle_antenna(angle=self.angle)
         self.__set_simulation_timesteps(reflection_distance=reflection_distance)

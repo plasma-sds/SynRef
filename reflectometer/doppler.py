@@ -31,7 +31,7 @@ class Doppler(Basic):
              "reflection_distance": 'default',
              "frequency":    np.arange(60, 90 + 0.1, 1) *1e9, # [GHz]
              "field_width":  np.array([0, 100e-3]), 
-             "field_height": np.array([-150e-3, 150e-3]),
+             "field_height": np.array([-150e-3 + 16.24e-3, 150e-3 + 16.24e-3]),
              "antenna_pos":  np.array([2.0441, 6.2912, -0.146]), 
              "LOS":          np.array([18, -3.7, 0]),
              "beam_waist": 0.015},
@@ -40,12 +40,12 @@ class Doppler(Basic):
              "reflection_distance": 'default',
              "frequency":    np.arange(25, 40 + 0.1, 1) *1e9, # [GHz]
              "field_width":  np.array([0, 100e-3]), 
-             "field_height": np.array([-150e-3 + 16.24e-3, 150e-3 + 16.24e-3]),
+             "field_height": np.array([-150e-3 , 150e-3]),
              "antenna_pos":  np.array([2.0441, 6.2912, -0.146]), 
              "LOS":          np.array([18, -3.7, 0]),
              "beam_waist": 0.015} }
     
-    def __init__(self, library = "W7X QMR-V1", t = "default",
+    def __init__(self, library = "W7X QMR-V1", time = "default",
                  density_evolution = ["default"], ez_evolution = ["default"],
                  working_directory = ''):
         """
@@ -73,6 +73,8 @@ class Doppler(Basic):
 
         """
         self.path = working_directory
+        self.frame = 0
+        self.time = time
         
         if   isinstance(library, dict):
             self.library = library
@@ -144,6 +146,28 @@ class Doppler(Basic):
             b_field = self.ez_evolution[0],    **self.config)
         
     def get_libraries(self): return self.setup_library
+    
+    
+    def single_run(self, frequency_index = "default", 
+                   density_index = "default",
+                   con_filename = False, path = "default"):
+        self.frame = density_index
+        
+        if path == "default": path = self.path
+        
+        if frequency_index == "default": 
+            frequency = self.library["frequency"][0]
+        else: frequency = self.library["frequency"][frequency_index]
+        
+        if density_index != "default": 
+            self.update_density(self.density_evolution[density_index],
+                                reflection_distance='default')
+        if con_filename == True: 
+            con_filename = "config_{dens:04d}_{freq}.json".format(
+                dens=density_index, freq="{freq:03d}")
+            
+        self.amplitudes, self.phases = func.get_frequency_sweep(
+            self, [frequency], con_filename=con_filename, path=path)
         
     
     def frequency_sweep(self, frequency_indices = "default", 
@@ -156,15 +180,15 @@ class Doppler(Basic):
         else: frequencies = self.library["frequency"][frequency_indices]
         
         if density_index != "default": 
-            self.update_density(self.density_evolution[density_index], 
-                                self.x, self.y, reflection_distance='default')
+            self.update_density(self.density_evolution[density_index],
+                                reflection_distance='default')
         
         if con_filename == True: 
             con_filename = "config_{dens:04d}_{freq}.json".format(
                 dens=density_index, freq="{freq:03d}")
             
-        func.get_frequency_sweep(self, frequencies,
-                                 con_filename=con_filename, path=path)
+        self.amplitudes, self.phases = func.get_frequency_sweep(
+            self, frequencies, con_filename=con_filename, path=path)
             
         
     def density_sweep(self, frequency_index = "default", 
@@ -182,9 +206,9 @@ class Doppler(Basic):
             con_filename = "config_{dens}_{freq:03d}.json".format(
                 dens="{dens:03d}", freq=frequency_index)
             
-        func.get_density_sweep(self, self.density_evolution, 
-                               self.x, self.y, density_indices,
-                               con_filename=con_filename, path=path)
+        self.amplitudes, self.phases = func.get_density_sweep(
+            self, self.density_evolution, self.x, self.y, density_indices,
+            con_filename=con_filename, path=path)
         
     
     def full_sweep(self, frequency_indices = "default", 
@@ -206,10 +230,13 @@ class Doppler(Basic):
         
         if con_filename == True: 
             con_filename = "config_{dens:04d}_{freq:03d}.json"
-            
-        func.get_full_sweep(self, self.density_evolution, self.x, self.y,
-                            frequencies, density_indices,
-                            con_filename=con_filename, path=path)
+        
+        self.update_density(self.density_evolution[density_indices[0]])
+        self.update_frequency(frequencies[0])
+        
+        self.amplitudes, self.phases = func.get_full_sweep(
+            self, self.density_evolution, frequencies, density_indices,
+            con_filename=con_filename, path=path)
     
     
     # def plot_section():

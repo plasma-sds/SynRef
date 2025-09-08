@@ -378,7 +378,7 @@ def get_frequency_sweep(reflectometer, frequencies,
     return amplitudes, phases
 
 
-def get_density_sweep(reflectometer, density, x, y, frames,
+def get_density_sweep(reflectometer, density, frames,
                       con_filename = "config_{dens:04d}_000.json",
                       path = ''):
     """
@@ -392,8 +392,6 @@ def get_density_sweep(reflectometer, density, x, y, frames,
         reflectometer (Basic): A configured Basic reflectometer instance
         density (numpy.ndarray): 3D array of density profiles with shape (nt, ny, nx)
                                  where nt is the number of time steps
-        x (numpy.ndarray): 1D array of x coordinates in meters
-        y (numpy.ndarray): 1D array of y coordinates in meters
         frames: iterable, a subselection of time steps
         con_filename: naming convention of the config file - config_{<frame>}_000.json
         (if set to False or 0 -> no config file created)
@@ -425,7 +423,7 @@ def get_density_sweep(reflectometer, density, x, y, frames,
         density_slab = density[frame]
             
         # Update reflectometer with new density profile
-        reflectometer.update_density(density_slab, x, y)
+        reflectometer.update_density(density_slab)
             
         # Execute FW2D calculation
         result = reflectometer.fw2d.maxwell_2d_omode(ctypes.byref(reflectometer.data))
@@ -456,7 +454,7 @@ def get_density_sweep(reflectometer, density, x, y, frames,
     return amplitudes, phases
 
 
-def get_full_sweep(reflectometer, density, x, y, frequencies, frames, 
+def get_full_sweep(reflectometer, density, frequencies, frames, 
                    con_filename = "config_{dens:04d}_{freq:03d}.json",
                    path = ''):
     """
@@ -468,8 +466,6 @@ def get_full_sweep(reflectometer, density, x, y, frequencies, frames,
     Args:
         reflectometer (Basic): A configured Basic reflectometer instance
         density (numpy.ndarray): 3D array of density profiles with shape (nt, ny, nx)
-        x (numpy.ndarray): 1D array of x coordinates in meters
-        y (numpy.ndarray): 1D array of y coordinates in meters
         frequencies: iterable, frequency values in Hz
         frames: iterable, a subselection of time steps
         con_filename: naming convention of the config file - config_{<frame>}_{<frequency index>}.json
@@ -498,7 +494,7 @@ def get_full_sweep(reflectometer, density, x, y, frequencies, frames,
             # Extract 2D density profile for current time step
             density_slab = density[frame]
             # Update reflectometer with new density profile
-            reflectometer.update_density(density_slab, x, y)
+            reflectometer.update_density(density_slab)
             
             # Perform frequency sweep
             for freq_ind, freq in enumerate(frequencies):
