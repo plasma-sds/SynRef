@@ -16,6 +16,7 @@ import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 
 
+
 def ref_data(reflectometer):
     """
     Generate a summary string with key properties of a reflectometer.
@@ -36,6 +37,57 @@ def ref_data(reflectometer):
                       f"Beam w.: {ref.beam_waist_si*1e3} mm",
                       f"Angle: {ref.angle:+}°"))
     return text
+
+def plot_EZ_field(data, filename = False, show = False, 
+                  reflectometer = None, text = None, figsize=(5, 5*1.5)):
+    
+    # setting the axis and field data
+    ref = reflectometer
+    # if(ref != None):
+    #     if(hasattr(ref, "setup_map")):
+    #             X, Y = ref.setup_map["X_abs"]*1e3, ref.setup_map["Y_abs"]*1e3
+    #     else:   X, Y = ref.x*1e3, ref.y*1e3
+    # else:       
+    Y, X = np.arange(data.shape[0]), np.arange(data.shape[1])
+    Z = data
+    maximum = max(abs(np.max(Z)), abs(np.min(Z)))
+    
+    # Set up figure layout and color map
+    fig, (ax, cax1) = plt.subplots(figsize=figsize, ncols=2,
+                                   gridspec_kw={"width_ratios":[10, 0.5]},
+                                   constrained_layout=True)
+    # fig.subplots_adjust(left=0.15, right=0.95, top=0.95, bottom=0.08)
+    contour = ax.contourf(X, Y, Z, levels=200, cmap='coolwarm',
+                          vmin=-maximum, vmax=maximum)
+    
+    # Create the colorbar
+    cbar = plt.colorbar(contour, cax=cax1)
+    
+    # If a reflectometer is defined, its path is displayed:
+    if(ref != None):
+        pos, dist = ref.antenna_pos * 1e3 + Y[0], (X[-1] - X[0]) * 0.8
+        xs = (X[0], X[0] + dist)
+        ys = (pos, np.tan(ref.angle / 180 * np.pi) * abs(dist) + pos)
+        ax.plot(xs, ys, c = "black", linestyle= "--")
+    
+    # Create the appropriate annotations
+    ax.set_title("Electromagnetic field", loc = "center")
+    ax.set_xlabel("Radial position x [mm]")
+    ax.set_ylabel("Poloidal position y [mm]")
+    
+    if (text != None):
+        props = dict(boxstyle='round', facecolor='grey', alpha=0.5)
+        ax.text(0.05, 0.95, text, transform=ax.transAxes, fontsize=10,
+            verticalalignment='top', bbox=props)
+    
+    if (show == False): plt.close()
+    if (filename != False): 
+        fig.savefig(filename, dpi=300)
+    
+    return fig, ax
+    
+    return fig, ax
+    
 
 def plot_amplitude_field(data, filename = False, show = False, text = None,
                          figsize=(8, 5)):
@@ -111,10 +163,13 @@ def plot_phase_field(data, filename = False, show = False, text = None,
     fig, ax : matplotlib.figure.Figure, matplotlib.axes.Axes
         Figure and axes objects of the plot.
     """
+    max_val = max(abs(np.max(data["phase_field"])),
+                  abs(np.min(data["phase_field"])))
     
     fig, ax = plt.subplots(figsize=figsize, constrained_layout=True)
     phas = ax.contourf(data["frequencies"], data["time"] *1e6, 
-                       data["phase_field"], levels=200, cmap='coolwarm')
+                       data["phase_field"], levels=200, cmap='coolwarm',
+                       vmin=-max_val, vmax=max_val)
     ax.set_title("Phase response field")
     ax.set_xlabel("Frequency f [GHz]")
     ax.set_ylabel("Time t [\u00B5s]")
@@ -193,7 +248,7 @@ def plot_density(data, filename = False, frame = 0, show = False,
     cax2 = cax1.twinx()
     cax2.set_ylim([func.get_plasma_frequency(min_val) * 1e-9, 
                    func.get_plasma_frequency(max_val) * 1e-9])
-    cax2.set_ylabel('Density [] Frequency [GHz]')
+    cax2.set_ylabel(r'Density [m$^{-3}$] Frequency [GHz]')
     
     # If a reflectometer is defined, its path is displayed:
     if(ref != None):
@@ -282,7 +337,7 @@ def animate_density(data, filename, reduction = 3, show = False,
     cax2 = cax1.twinx()
     cax2.set_ylim([func.get_plasma_frequency(min_val) * 1e-9, 
                    func.get_plasma_frequency(max_val) * 1e-9])
-    cax2.set_ylabel('Density [] Frequency [GHz]')
+    cax2.set_ylabel(r'Density [$m^{-3}$] Frequency [GHz]')
     
     # If a reflectometer is defined, its path is displayed:
     if(ref != None):
