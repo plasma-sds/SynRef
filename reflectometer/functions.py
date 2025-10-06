@@ -309,7 +309,7 @@ def is_Xmode_propagating(frequency, density, bfield):
     return result.item() if result.size == 1 else result
 
 
-def get_frequency_sweep(reflectometer, frequencies,
+def get_frequency_sweep(reflectometer, frequencies, freq_inds,
                         con_filename = "config_0000_{freq:03d}.json",
                         path = ''):
     """
@@ -337,15 +337,16 @@ def get_frequency_sweep(reflectometer, frequencies,
     """
     
     # Initialize arrays to store results
-    amplitudes = np.zeros(len(frequencies))
-    phases = np.zeros(len(frequencies))
+    amplitudes = np.zeros(len(freq_inds))
+    phases = np.zeros(len(freq_inds))
     
     start = datetime.now()
     print('Start: ', start)
     
     # Perform frequency sweep
-    for freq_ind, freq in enumerate(frequencies):
+    for j, freq_ind in enumerate(freq_inds):
         # Update reflectometer frequency
+        freq = frequencies[freq_ind]
         reflectometer.update_frequency(freq)
         
         # Execute FW2D calculation
@@ -355,8 +356,8 @@ def get_frequency_sweep(reflectometer, frequencies,
         
         if result != 0:
             print(f"Warning: FW2D calculation failed for frequency {freq:.2e} Hz")
-            amplitudes[freq_ind] = np.nan
-            phases[freq_ind] = np.nan
+            amplitudes[j] = np.nan
+            phases[j] = np.nan
             continue
         
         if con_filename != False:
@@ -372,8 +373,8 @@ def get_frequency_sweep(reflectometer, frequencies,
         # Get antenna output
         amp_array, phase_array = reflectometer.get_antenna_output()
         
-        amplitudes[freq_ind] = amp_array[0]
-        phases[freq_ind] = phase_array[0]
+        amplitudes[j] = amp_array[0]
+        phases[j] = phase_array[0]
             
     return amplitudes, phases
 
@@ -406,7 +407,7 @@ def get_density_sweep(reflectometer, density, frames,
     
     # Check input array dimensions
     if len(density.shape) != 3:
-        raise ValueError("density must be a 3D numpy array with shape (ny, nx, nt)")
+        raise ValueError("density must be a 3D numpy array with shape (nt, ny, nx)")
     
     time_steps, ny, nx = density.shape
         
@@ -418,7 +419,7 @@ def get_density_sweep(reflectometer, density, frames,
     print('Start: ', start)
     
     # Perform density sweep
-    for frame_ind, frame in enumerate(frames):
+    for i, frame in enumerate(frames):
         # Extract 2D density profile for current time step
         density_slab = density[frame]
             
@@ -430,8 +431,8 @@ def get_density_sweep(reflectometer, density, frames,
             
         if result != 0:
             print(f"Warning: FW2D calculation failed for time step {frame}")
-            amplitudes[frame_ind] = np.nan
-            phases[frame_ind] = np.nan
+            amplitudes[i] = np.nan
+            phases[i] = np.nan
             continue
         
         if con_filename != False:
@@ -448,13 +449,13 @@ def get_density_sweep(reflectometer, density, frames,
         amp_array, phase_array = reflectometer.get_antenna_output()
             
         # Store results (using first antenna element)
-        amplitudes[frame_ind] = amp_array[0]
-        phases[frame_ind] = phase_array[0]
+        amplitudes[i] = amp_array[0]
+        phases[i] = phase_array[0]
     
     return amplitudes, phases
 
 
-def get_full_sweep(reflectometer, density, frequencies, frames, 
+def get_full_sweep(reflectometer, density, frequencies, frames, freq_inds,
                    con_filename = "config_{dens:04d}_{freq:03d}.json",
                    path = ''):
     """
@@ -479,26 +480,27 @@ def get_full_sweep(reflectometer, density, frequencies, frames,
     """
     # Check input array dimensions
     if len(density.shape) != 3:
-        raise ValueError("density must be a 3D numpy array with shape (ny, nx, nt)")
-    n_time_steps, ny, nx = density.shape
+        raise ValueError("density must be a 3D numpy array with shape (nt, ny, nx)")
+    n_t, ny, nx = density.shape
 
     # Initialize arrays to store results
-    amplitudes = np.zeros((len(frequencies), len(frames)))
-    phases = np.zeros((len(frequencies), len(frames)))
+    amplitudes = np.zeros((len(freq_inds), len(frames)))
+    phases = np.zeros((len(freq_inds), len(frames)))
     
     start = datetime.now()
     print('Start: ', start)
 
     try:
-        for frame_ind, frame in enumerate(frames):
+        for i, frame in enumerate(frames):
             # Extract 2D density profile for current time step
             density_slab = density[frame]
             # Update reflectometer with new density profile
             reflectometer.update_density(density_slab)
             
             # Perform frequency sweep
-            for freq_ind, freq in enumerate(frequencies):
+            for j, freq_ind in enumerate(freq_inds):
                 # Update reflectometer frequency
+                freq = frequencies[freq_ind]
                 reflectometer.update_frequency(freq)
                 
                 # Execute FW2D calculation
@@ -508,8 +510,8 @@ def get_full_sweep(reflectometer, density, frequencies, frames,
                 
                 if result != 0:
                     print(f"Warning: FW2D calculation failed for frequency {freq:.2e} Hz, for time step {frame}")
-                    amplitudes[freq_ind, frame_ind] = np.nan
-                    phases[freq_ind, frame_ind] = np.nan
+                    amplitudes[j, i] = np.nan
+                    phases[j, i] = np.nan
                     continue
                 
                 if con_filename != False:
@@ -525,8 +527,8 @@ def get_full_sweep(reflectometer, density, frequencies, frames,
                 # Get antenna output
                 amp_array, phase_array = reflectometer.get_antenna_output()
                 
-                amplitudes[freq_ind, frame_ind] = amp_array[0]
-                phases[freq_ind, frame_ind] = phase_array[0]
+                amplitudes[j, i] = amp_array[0]
+                phases[j, i] = phase_array[0]
                 
     except Exception as e:
         print(f"Full sweep failed: {e}")
