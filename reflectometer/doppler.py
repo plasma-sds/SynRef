@@ -142,6 +142,9 @@ class Doppler(Basic):
         
     def __initialize(self):
         lib = self.library
+        
+        
+        
         Basic.__init__(self,
             x = np.linspace(0, lib["field_width"][1] - lib["field_width"][0],
                             self.density_evolution.shape[2]),
@@ -399,13 +402,13 @@ class Doppler_signal():
             guess_offset = Z.min()
             guess_asym_x = guess_asym_y = 1.0
             
-            p0 = [guess_A, guess_x0, guess_y0, 
-                  guess_sigma_x, guess_sigma_y, guess_theta,
-                  guess_offset, guess_asym_x, guess_asym_y]
+            p0[i, :] = [guess_A, guess_x0, guess_y0, 
+                        guess_sigma_x, guess_sigma_y, guess_theta,
+                        guess_offset, guess_asym_x, guess_asym_y]
             
             # Fit
             popt[i, :], pcov[i, :] = curve_fit(self.__gaussian_2d, coords,
-                                               Z.ravel(), p0=p0)
+                                               Z.ravel(), p0=p0[i, :])
             
             gauss = self.__gaussian_2d(
                 coords,  **dict(zip(keywords, popt[i, :]))
@@ -445,6 +448,29 @@ class Doppler_signal():
             (xr / sigma_x_eff)**2 + (yr / sigma_y_eff)**2) )
 
         return (offset + gauss).ravel()
+    
+    def write(self, filename = "event_data.json"):
+        dictionary = {"event_amp": list(self.event["A"]),
+                      "event_freq": list(1 / self.event["y0"]),
+                      "event_time": list(self.event["x0"]),
+                      "event_start": list(self.event["FWHM_lims"][:, 0]),
+                      "event_end": list(self.event["FWHM_lims"][:, 1]),
+                      "frequencies": list(self.cwt_data["frequencies"]* 1.0),
+                      # "signal_amp": list(np.max(np.abs
+                      #     (self.data["amplitude_field"]), axis = 1)),
+                      
+                      "guess_amp": list(self.cwt_data["gauss_p0"][:, 0]),
+                      "guess_time": list(self.cwt_data["gauss_p0"][:, 1]),
+                      "guess_freq": list(self.cwt_data["gauss_p0"][:, 2]),
+                      
+                      "Gauss_p0": self.cwt_data["gauss_p0"].tolist(),
+                      "Gauss_popt": self.cwt_data["gauss_popt"].tolist()
+                      }
+        
+        fm.export_dict(dictionary, filename, path = self.path)
+        self.dictionary = dictionary
+        
+        
             
         
         

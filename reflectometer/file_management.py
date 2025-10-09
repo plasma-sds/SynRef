@@ -116,7 +116,7 @@ def import_dict(filename, path = ''):
         return load(f)
 
 # create a directory for the relevant results (optional: copy files into)
-def create_directory(simulation_name, path = '', file = "default"):
+def create_directory(simulation_name, path = '', file = "default", date = False):
     """
     Create a directory for storing simulation results, 
     optionally copying specified files (for example density arrays) into it.
@@ -138,7 +138,9 @@ def create_directory(simulation_name, path = '', file = "default"):
         Full path to the created directory.
     """
     
-    path = join(path, datetime.now().strftime("%Y%m%d_") + simulation_name)
+    if (date): datetime.now().strftime("%Y%m%d_") + simulation_name
+    
+    path = join(path, simulation_name)
     try: mkdir(path)
     except: pass
     if isinstance(file, list): # string of filenames should be stored in a list
@@ -251,7 +253,44 @@ def read_ref_signal(path, signal_filename = "signal_field.h5"):
     with File(file, "r") as f:
         return {key: f[key][()] for key in f.keys()}
     
+
+def save_events(working_directory, folder, filename = "default",
+                res_file = "default"):
     
+    # Export the data into a h5 file:
+    if (filename == "default"): filename = "event_data.json"
+    if (res_file == "default"): 
+        res_path = create_directory("_analysis_", working_directory)
+        res_file = join(res_path, "event_table.h5")
+    
+
+
+    keys = ["event_amp", "event_freq", "event_time", 
+            "guess_amp", "guess_freq", "guess_time",
+            "event_start", "event_end"]
+    values = [np.zeros((2,3,3,9)) for _ in range(len(keys))]
+    res = dict(zip(keys, values))
+
+
+    for i in range(2):
+        for j in range(3):
+            for k in range(3):
+                path = Path(working_directory, 
+                            folder.format(v=i+1, A=j+1, s=k+1), filename)
+                data = import_dict(path)
+                
+                for key in keys:
+                    res[key][i,j,k,:] = data[key]
+                
+                
+    from h5py import File
+    f = File(res_file, "w")
+    f.create_dataset("frequencies", data = np.array(data["frequencies"]),
+                     compression="gzip")
+
+    for key in keys:
+        f.create_dataset(key, data = res[key], compression="gzip")
+    f.close()
     
     
     
