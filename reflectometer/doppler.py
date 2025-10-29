@@ -10,6 +10,9 @@ from pathlib import Path
 from os.path import dirname
 from os.path import join
 from os import mkdir
+from scipy.signal import ShortTimeFFT
+from scipy.signal.windows import hann  # or another window
+from scipy.ndimage import maximum_filter, label
 from pywt import cwt as pywt_cwt
 from pywt import central_frequency as pywt_fc
 from pywt import scale2frequency as pywt_s2f
@@ -330,7 +333,7 @@ class Doppler_signal():
                            time = "default")
         
         
-    def analyze(self, scale = "default", frequency_indices = "all",
+    def analyze_cwt(self, scale = "default", frequency_indices = "all",
                 wavelet = 'cmor1.5-1.0'):
         
         t = self.data["time"]
@@ -342,62 +345,206 @@ class Doppler_signal():
             frequency_indices = np.arange(len(f))
         
         if scale == "default": 
-            scale = np.arange(2, len(t)/3)
-            
-        freq = pywt_s2f(wavelet, scale) / dt
-        period = 1 / freq
+            scale = np.arange(8, len(t)*2)
         
-        cwt = np.zeros((len(frequency_indices), len(scale), len(t)), 
+        nf = len(scale)
+        freq = fc/scale/dt
+        # print(freq)
+        freq_full = np.concatenate([-freq, freq[::-1]])
+        
+        cwt = np.zeros((len(frequency_indices), nf*2, len(t)), 
                        dtype = np.complex128)
         
         for i, f_ind in enumerate(frequency_indices):
-            cwt[i, :, :], _ = pywt_cwt(self.complex_sig_rel[:, f_ind],
-                            scale, wavelet, sampling_period = dt)
+            V = self.complex_sig_rel[:, f_ind]
+            cwt_pos, _ = pywt_cwt(V, scale, wavelet, 
+                                         sampling_period = dt)
+            cwt_neg, _ = pywt_cwt(np.conj(V), scale, wavelet, 
+                                         sampling_period = dt)
+            cwt_full = np.vstack([cwt_neg, cwt_pos[::-1]])
+            cwt[i, :, :] = cwt_full
             
-        cwt_data = {"cwt_matrix": cwt,   # c onvolution matrix of the wavelets
-                    "scale": scale,      #      relative scale of the wavelets
-                    "freq": freq,        #           frequency of the wavelets
-                    "period": period,    #         time period of the wavelets
-                    "time": t,           # time
-                    "fc": fc,            # reference frequency of the wavelets
-                    "wavelet": wavelet,  #                type of the wavelets
-                    
-                    "frequency_indices": frequency_indices,
-                    "frequencies": f[frequency_indices]
-                    # antenna frequencies
+        cwt_data = {
+            "matrix": cwt,   # c onvolution matrix of the wavelets
+            "freq": freq_full,        #           frequency of the wavelets
+            "time": t,           # time
+            
+            "frequency_indices": frequency_indices,
+            "frequencies": f[frequency_indices] # antenna frequencies
                     }
         
         self.cwt_data = cwt_data
         
-        self.__find_event()
+        self.cwt_peaks = self.find_and_refine_peaks(t, freq_full, np.abs(cwt))
+        
+        # gauss_fit = self.__find_event(cwt_data)
+        # self.cwt_gauss = gauss_fit
         
         
-    def __find_event(self):
+    def analyze_stft(self, frequency_indices = "all", res_fft = "default",
+                     window = "default", overlap_percentage = "default"):
+        
+        t = self.data["time"]
+        f = self.data["frequencies"] # antenna frequencies
+        dt = t[1]-t[0]
+        
+        if frequency_indices == "all": frequency_indices = np.arange(len(f))
+        if window == "default": window = int(len(t)/5)
+        if overlap_percentage == "default": overlap_percentage = 0.5
+        if res_fft == "default": res_fft = len(t)*4
+        
+        SFT = ShortTimeFFT(hann(window), hop = int(overlap_percentage*window),
+                           fs = 1/dt, fft_mode = 'centered', mfft = res_fft,
+                           scale_to='magnitude')
+        freq = SFT.f
+        times = SFT.t(len(t))
+        
+        stft = np.zeros((len(frequency_indices), len(freq), len(times)), 
+                        dtype = np.complex128)
+        
+        for i, f_ind in enumerate(frequency_indices):
+            V = self.complex_sig_rel[:, f_ind]
+            stft[i, :, :] = SFT.stft(V)
+            
+        stft_data = {
+            "matrix": stft,      #      Convolution matrix of the STFT
+            "freq": freq,        #                     frequency range
+            "time": times,       # time
+            
+            "frequency_indices": frequency_indices,
+            "frequencies": f[frequency_indices] # antenna frequencies
+                    }
+        
+        self.stft_data = stft_data
+        
+        self.stft_peaks = self.find_and_refine_peaks(times, freq, np.abs(stft))
+        
+        # gauss_fit = self.__find_event(stft_data)
+        # self.stft_gauss = gauss_fit
+    
+
+        
+
+    def find_and_refine_peaks(self, x, y, Z, 
+                              halfsize="default", threshold="default"):
+        """
+        Find and refine 2D peaks using centroid interpolation.
+    
+        Parameters
+        ----------
+        x, y : 1D arrays
+            Grid coordinates (lengths nx, ny).
+        Z : 2D array (shape (ny, nx))
+            Field values defined on the grid.
+        halfsize : int, optional
+            Half-size of the local window around each detected peak (default=2).
+        threshold : float, optional
+            Minimum value of Z to consider as a valid peak.
+    
+        Returns
+        -------
+        peaks : list of dict
+            Each element: {'x': float, 'y': float, 'z': float}
+            containing subgrid coordinates and interpolated peak value.
+        """
+        nf, ny, nx = Z.shape
+        
+        peak_list = []
+        for i in range(nf):
+            z = Z[i,:,:]
+            if halfsize=="default": halfsize = 2
+            if threshold=="default": 
+                trshld = (np.max(z) - np.min(z))*0.3 + np.min(z)
+            else: trshld = (np.max(z) - np.min(z))*threshold + np.min(z)
+            
+            window_size_y = window_size_x = int((nx*ny)**0.5 / 12)
+            
+            # --- Step 1. Find local maxima (integer grid peaks)
+            neighborhood = np.ones((window_size_y, window_size_x))
+            local_max = (z == maximum_filter(z, footprint=neighborhood))
+            if threshold is not None:
+                local_max &= (z >= trshld)
+        
+            labeled, num = label(local_max)
+        
+            peaks = []
+            for i in range(1, num + 1):
+                coords = np.argwhere(labeled == i)
+                if coords.size == 0:
+                    continue
+                # pick pixel with max value in this region
+                r, c = coords[np.argmax(z[coords[:, 0], coords[:, 1]])]
+        
+                # --- Step 2. Extract patch around the peak
+                r0, r1 = max(0, r - halfsize), min(ny, r + halfsize + 1)
+                c0, c1 = max(0, c - halfsize), min(nx, c + halfsize + 1)
+                patch = z[r0:r1, c0:c1].astype(float)
+        
+                # Coordinates in physical units
+                yy, xx = np.meshgrid(y[r0:r1], x[c0:c1], indexing='ij')
+        
+                # --- Step 3. Centroid refinement
+                patch -= np.min(patch)  # background subtraction
+                patch[patch < 0] = 0
+                total = patch.sum()
+                if total == 0:
+                    continue
+                y_c = (yy * patch).sum() / total
+                x_c = (xx * patch).sum() / total
+                # --- Step 4. Interpolate z (bilinear)
+                # Find surrounding grid indices
+                ix = np.searchsorted(x, x_c) - 1
+                iy = np.searchsorted(y, y_c) - 1
+                ix = np.clip(ix, 0, nx-2)
+                iy = np.clip(iy, 0, ny-2)
+                
+                # Bilinear interpolation
+                x1, x2 = x[ix], x[ix+1]
+                y1, y2 = y[iy], y[iy+1]
+                Q11, Q12 = z[iy, ix], z[iy+1, ix]
+                Q21, Q22 = z[iy, ix+1], z[iy+1, ix+1]
+    
+                z_c = (
+                    Q11 * (x2 - x_c) * (y2 - y_c) +
+                    Q21 * (x_c - x1) * (y2 - y_c) +
+                    Q12 * (x2 - x_c) * (y_c - y1) +
+                    Q22 * (x_c - x1) * (y_c - y1)
+                    ) / ((x2 - x1) * (y2 - y1))
+        
+                peaks.append([x_c, y_c, float(z[r, c])])
+            peaks = np.asarray(peaks)
+            peaks = peaks[peaks[:, 2].argsort(), :][::-1, :]
+            peak_list.append(peaks)
+        return peak_list
+
+        
+    # OBSOLETE GAUSSIAN FIT - unreliable even with good initial parameters
+    def __find_event(self, data):
         from scipy.optimize import curve_fit
         
-        n_f = len(self.cwt_data["frequency_indices"])
+        n_f = len(data["frequency_indices"])
         keywords = ["A", "x0", "y0", "sigma_x", "sigma_y", 
                     "theta", "offset", "asym_x", "asym_y"]
         p0   = np.zeros((n_f, len(keywords)))
         popt = np.zeros((n_f, len(keywords)))
         pcov = np.zeros((n_f, len(keywords), len(keywords)))
         
-        t, T = self.cwt_data["time"], self.cwt_data["period"]
-        gauss_field = np.zeros((n_f, len(T), len(t)))
+        t, f = data["time"], data["freq"]
+        # gauss_field = np.zeros((n_f, len(T), len(t)))
         FWHM_inds = np.zeros((n_f, 2), dtype= np.int16)
         
         for i in range(n_f):
-            Z = np.abs(self.cwt_data["cwt_matrix"][i, :, :])
-            coords = np.meshgrid(t, T)
-            max_T, max_t = np.unravel_index(Z.argmax(), Z.shape)
+            Z = np.abs(data["matrix"][i, :, :])
+            coords = np.meshgrid(t, f)
+            max_f, max_t = np.unravel_index(Z.argmax(), Z.shape)
             # print(Z.shape, X.shape, Y.shape, t.shape, T.shape)
             
             # Initial guess parameters
             guess_A = Z.max() - Z.min()
             guess_x0 = t[max_t]
-            guess_y0 = T[max_T]
+            guess_y0 = f[max_f]
             guess_sigma_x = guess_y0 / 6 # 6 sigma can cover the 99.7%
-            guess_sigma_y = 0.2 *(T[-1] - T[0]) / 6 
+            guess_sigma_y = 0.1 *(f[-1] - f[0]) / 6
             guess_theta = 0
             guess_offset = Z.min()
             guess_asym_x = guess_asym_y = 1.0
@@ -407,28 +554,37 @@ class Doppler_signal():
                         guess_offset, guess_asym_x, guess_asym_y]
             
             # Fit
-            popt[i, :], pcov[i, :] = curve_fit(self.__gaussian_2d, coords,
-                                               Z.ravel(), p0=p0[i, :])
+            try:
+                popt[i, :], pcov[i, :] = curve_fit(
+                    self.__gaussian_2d, coords, Z.ravel(), p0=p0[i, :])
+            except:
+                print("no peaks found")
+                continue
             
             gauss = self.__gaussian_2d(
                 coords,  **dict(zip(keywords, popt[i, :]))
-                ).reshape((len(T), len(t)))
+                ).reshape((len(f), len(t)))
             
             half_max = popt[i, 0] / 2 # half of the amplitude
             
-            FWHM_inds[i, 0] = np.where(np.max(gauss, axis=0) > half_max)[0][ 0]
-            FWHM_inds[i, 1] = np.where(np.max(gauss, axis=0) > half_max)[0][-1]
-            
-            gauss_field[i, :, :] = gauss
+            try:
+                FWHM_inds[i, 0] = np.where(np.max(gauss, axis=0) > half_max)[0][ 0]
+                FWHM_inds[i, 1] = np.where(np.max(gauss, axis=0) > half_max)[0][-1]
+            except:
+                continue
+            # gauss_field[i, :, :] = gauss
         
-        self.cwt_data.update({"gauss_p0": p0, "gauss_popt": popt,
-                              "gauss_pcov": pcov, "gauss_keywords": keywords,
-                              "gauss_fit": gauss_field})
-        self.event = {"A": popt[:, 0], "x0": popt[:, 1], "y0": popt[:, 2],
-                      "FWHM_inds": FWHM_inds, 
-                      "FWHM_lims": self.cwt_data["time"][FWHM_inds] }
         
-    
+        gauss_fit = {"keywords": keywords, 
+                     "freqs": data["frequencies"][data["frequency_indices"]],
+                     "p0": p0, 
+                     "popt": popt,
+                     "FWHM_inds": FWHM_inds}
+                            # "gauss_pcov": pcov,
+                            # "gauss_fit": gauss_field,
+                          
+        return gauss_fit
+        
     def __gaussian_2d(self, coords, A=1, x0=0, y0=0, sigma_x=1, sigma_y=1,
                       theta=0, offset=0, asym_x=1.0, asym_y=1.0):
         
@@ -449,26 +605,35 @@ class Doppler_signal():
 
         return (offset + gauss).ravel()
     
-    def write(self, filename = "event_data.json"):
-        dictionary = {"event_amp": list(self.event["A"]),
-                      "event_freq": list(1 / self.event["y0"]),
-                      "event_time": list(self.event["x0"]),
-                      "event_start": list(self.event["FWHM_lims"][:, 0]),
-                      "event_end": list(self.event["FWHM_lims"][:, 1]),
-                      "frequencies": list(self.cwt_data["frequencies"]* 1.0),
-                      # "signal_amp": list(np.max(np.abs
-                      #     (self.data["amplitude_field"]), axis = 1)),
-                      
-                      "guess_amp": list(self.cwt_data["gauss_p0"][:, 0]),
-                      "guess_time": list(self.cwt_data["gauss_p0"][:, 1]),
-                      "guess_freq": list(self.cwt_data["gauss_p0"][:, 2]),
-                      
-                      "Gauss_p0": self.cwt_data["gauss_p0"].tolist(),
-                      "Gauss_popt": self.cwt_data["gauss_popt"].tolist()
-                      }
+    def write_cwt(self, filename_cwt = "event_data_CWT.json"):
         
-        fm.export_dict(dictionary, filename, path = self.path)
-        self.dictionary = dictionary
+        fa      = (self.cwt_data["frequencies"] * 1.0).tolist()
+        fcwt    = (self.cwt_data["freq"] * 1.0).tolist()
+        tcwt    = (self.cwt_data["time"] * 1.0).tolist()
+        eA_cwt  = [self.cwt_peaks[f][0,2] for f in range(len(fa))]
+        ef_cwt  = [self.cwt_peaks[f][0,1] for f in range(len(fa))]
+        et_cwt  = [self.cwt_peaks[f][0,0] for f in range(len(fa))]
+        
+        dictionary = {"event_amp": eA_cwt, "event_freq": ef_cwt,
+                      "event_time": et_cwt, "time": tcwt,
+                      "A_frequencies": fa, "T_frequencies": fcwt}
+    
+        return fm.export_dict(dictionary, filename_cwt, path = self.path)
+        
+    def write_stft(self, filename_stft = "event_data_STFT.json"):
+        
+        fa       = (self.stft_data["frequencies"] * 1.0).tolist()
+        fstft    = (self.stft_data["freq"] * 1.0).tolist()
+        tstft    = (self.stft_data["time"] * 1.0).tolist()
+        eA_stft  = [self.stft_peaks[f][0,2] for f in range(len(fa))]
+        ef_stft  = [self.stft_peaks[f][0,1] for f in range(len(fa))]
+        et_stft  = [self.stft_peaks[f][0,0] for f in range(len(fa))]
+        
+        dictionary = {"event_amp": eA_stft, "event_freq": ef_stft,
+                      "event_time": et_stft, "time": tstft,
+                      "A_frequencies": fa, "T_frequencies": fstft}
+    
+        return fm.export_dict(dictionary, filename_stft, path = self.path)
         
         
             
