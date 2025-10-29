@@ -6,9 +6,10 @@ Created on Tue Jul 15 13:26:16 2025
 """
 
 from json import dump, load
-from os import mkdir
-from shutil import copy
-from os.path import join
+from os import mkdir, listdir
+from re import match
+from shutil import copy, copy2, move
+from os.path import join, exists, isfile
 from datetime import datetime
 from pathlib import Path
 from h5py import File
@@ -149,6 +150,53 @@ def create_directory(simulation_name, path = '', file = "default", date = False)
             except: print("Incorrectly referenced file:\n", f)
     elif file != "default": copy(file, path)
     return path
+
+
+def copy_config_files(source_folder, destination_folder, pattern):
+    """
+    Copy all files matching pattern 'config_####_008.json' from source folder to destination folder.
+    
+    Args:
+        source_folder (str): Path to the source folder
+        destination_folder (str): Path to the destination folder
+    """
+    # Create destination folder if it doesn't exist
+    if not exists(destination_folder):
+        mkdir(destination_folder)
+        print(f"Created destination folder: {destination_folder}")
+    
+    copied_count = 0
+    
+    for filename in listdir(source_folder):
+        file_path = join(source_folder, filename)
+        
+        if isfile(file_path) and match(pattern, filename):
+            destination_path = join(destination_folder, filename)
+            copy2(file_path, destination_path)  # copy2 preserves metadata
+            copied_count += 1
+            print(f"Copied: {filename}")
+    
+    print(f"Operation completed. Copied {copied_count} files.")
+
+def move_files(source_folder, destination_folder, pattern):
+    """
+   Moving files
+    """
+    # Create destination folder if it doesn't exist
+    if not exists(destination_folder):
+        mkdir(destination_folder)
+    
+    moved_count = 0
+    
+    for filename in listdir(source_folder):
+        file_path = join(source_folder, filename)
+        
+        if isfile(file_path) and match(pattern, filename):
+            move(file_path, join(destination_folder, filename))
+            moved_count += 1
+            print(f"Moved: {filename}")
+    
+    print(f"Operation completed. Moved {moved_count} files.")
 
 
 def save_ref_signal(folder, filename = "config_{dens:04d}_{freq:03d}.json",
