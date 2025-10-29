@@ -457,7 +457,7 @@ class Doppler_signal():
                 trshld = (np.max(z) - np.min(z))*0.3 + np.min(z)
             else: trshld = (np.max(z) - np.min(z))*threshold + np.min(z)
             
-            window_size_y = window_size_x = int((nx*ny)**0.5 / 12)
+            window_size_y = window_size_x = int((nx*ny)**0.5 / 13)
             
             # --- Step 1. Find local maxima (integer grid peaks)
             neighborhood = np.ones((window_size_y, window_size_x))

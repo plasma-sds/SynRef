@@ -283,6 +283,7 @@ def plot_cwt(data, filename = False, show = False, text = None,
         
         # --- Complex signal - time series ---
         S = signal["amplitude_field"] * np.exp(1j * signal["phase_field"])
+        S = (S - np.average(S, axis = 0))
         axs[0].plot(signal["time"]/tu, S[:, fa].imag, color='tab:orange')
         axs[0].plot(signal["time"]/tu, S[:, fa].real, color='tab:blue')
         
@@ -401,6 +402,7 @@ def plot_stft(data, filename = False, show = False, text = None,
         
         # --- Complex signal - time series ---
         S = signal["amplitude_field"] * np.exp(1j * signal["phase_field"])
+        S = (S - np.average(S, axis = 0))
         axs[0].plot(signal["time"]/tu, S[:, fa].imag, color='tab:orange')
         axs[0].plot(signal["time"]/tu, S[:, fa].real, color='tab:blue')
         
