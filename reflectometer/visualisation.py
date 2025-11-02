@@ -48,18 +48,30 @@ def peak_data(data, frequency_index):
     
     return text
 
-def plot_EZ_field(data, filename = False, show = False, 
+def plot_EZ_field(data, filename = None, time = 0, show = False, 
                   reflectometer = None, text = None, figsize=(5, 5*1.5)):
     
     # setting the axis and field data
     ref = reflectometer
-    # if(ref != None):
-    #     if(hasattr(ref, "setup_map")):
-    #             X, Y = ref.setup_map["X_abs"]*1e3, ref.setup_map["Y_abs"]*1e3
-    #     else:   X, Y = ref.x*1e3, ref.y*1e3
-    # else:       
-    Y, X = np.arange(data.shape[0]), np.arange(data.shape[1])
-    Z = data
+    if(ref != None):
+        if(hasattr(ref, "setup_map")):
+            X, Y = ref.setup_map["X_abs"]*1e3, ref.setup_map["Y_abs"]*1e3
+        else:   
+            X, Y = np.arange(ref.nx)*ref.dx*1e3, np.arange(ref.ny)*ref.dx*1e3
+        
+        x_border = (data.shape[1] - ref.nx) // 2
+        y_border = (data.shape[0] - ref.ny) // 2
+
+        Z = data[
+            y_border : y_border + ref.ny ,
+            x_border : x_border + ref.nx
+        ]
+        
+        
+    else:       
+        X, Y = np.arange(data.shape[1]), np.arange(data.shape[0])
+        Z = data
+    Z = Z[::-1, :]
     maximum = max(abs(np.max(Z)), abs(np.min(Z)))
     
     # Set up figure layout and color map
@@ -81,24 +93,23 @@ def plot_EZ_field(data, filename = False, show = False,
         ax.plot(xs, ys, c = "black", linestyle= "--")
     
     # Create the appropriate annotations
-    ax.set_title("Electromagnetic field", loc = "center")
+    ax.set_title("Electromagnetic field", loc = "left")
     ax.set_xlabel("Radial position x [mm]")
     ax.set_ylabel("Poloidal position y [mm]")
+    ax.set_title(f"{round(time,1)} [\u00B5s]", loc = "right")
     
     if (text != None):
         props = dict(boxstyle='round', facecolor='grey', alpha=0.5)
         ax.text(0.05, 0.95, text, transform=ax.transAxes, fontsize=10,
-            verticalalignment='top', bbox=props)
+            verticalalignment='bottom', bbox=props)
     
     if (show == False): plt.close()
-    if (filename != False): 
+    if (filename != None): 
         fig.savefig(filename, dpi=300)
     
     return fig, ax
     
-    return fig, ax
-    
-def plot_amplitude_field(data, filename = False, show = False, text = None,
+def plot_amplitude_field(data, filename = None, show = False, text = None,
                          figsize=(8, 5)):
     """
     Plot the amplitude response field as a contour plot.
@@ -140,12 +151,12 @@ def plot_amplitude_field(data, filename = False, show = False, text = None,
             verticalalignment='top', bbox=props)
     
     if (show == False): plt.close()
-    if (filename != False): 
+    if (filename != None): 
         fig.savefig(filename, dpi=300)
     
     return fig, ax
 
-def plot_phase_field(data, filename = False, show = False, text = None,
+def plot_phase_field(data, filename = None, show = False, text = None,
                      figsize=(8, 5)):
     """
     Plot the phase response field as a contour plot.
@@ -190,12 +201,12 @@ def plot_phase_field(data, filename = False, show = False, text = None,
             verticalalignment='top', bbox=props)
     
     if (show == False): plt.close()
-    if (filename != False): 
+    if (filename != None): 
         fig.savefig(filename, dpi=300)
     
     return fig, ax
 
-def plot_phase_grad_field(data, filename = False, show = False, text = None,
+def plot_phase_grad_field(data, filename = None, show = False, text = None,
                           figsize=(8, 5)):
     """
     Plot the phase response field as a contour plot.
@@ -243,12 +254,12 @@ def plot_phase_grad_field(data, filename = False, show = False, text = None,
             verticalalignment='top', bbox=props)
     
     if (show == False): plt.close()
-    if (filename != False): 
+    if (filename != None): 
         fig.savefig(filename, dpi=300)
     
     return fig, ax
 
-def plot_cwt(data, filename = False, show = False, text = None, 
+def plot_cwt(data, filename = None, show = False, text = None, 
              frequency_index = 0, figsize=None,
              peaks = None, signal = None):
     """
@@ -362,12 +373,12 @@ def plot_cwt(data, filename = False, show = False, text = None,
     
     # --- Show the plot? - Save the plot?
     if (show == False): plt.close()
-    if (filename != False): 
+    if (filename != None): 
         fig.savefig(filename, dpi=300)
     
     return fig, axs
 
-def plot_stft(data, filename = False, show = False, text = None, 
+def plot_stft(data, filename = None, show = False, text = None, 
              frequency_index = 0, figsize=None,
              peaks = None, signal = None):
     """
@@ -481,16 +492,13 @@ def plot_stft(data, filename = False, show = False, text = None,
 
     # --- Show the plot? - Save the plot?
     if (show == False): plt.close()
-    if (filename != False): 
+    if (filename != None): 
         fig.savefig(filename, dpi=300)
     
     return fig, axs
 
 
-def plot_signal():
-    return
-
-def plot_density(data, filename = False, frame = 0, show = False, 
+def plot_density(data, filename = None, frame = 0, show = False, 
                  reflectometer = None, text = None, figsize=(5, 5*1.5)):
     """
     Plot a 2D density field with optional reflectometer information overlay.
@@ -562,7 +570,7 @@ def plot_density(data, filename = False, frame = 0, show = False,
         ax.plot(xs, ys, c = "black", linestyle= "--")
     
     # Create the appropriate annotations
-    ax.set_title("Density field", loc = "center")
+    ax.set_title("Density field", loc = "left")
     ax.set_xlabel("Radial position x [mm]")
     ax.set_ylabel("Poloidal position y [mm]")
     ax.set_title(f"{round(t,1)} [\u00B5s]", loc = "right")
@@ -573,7 +581,7 @@ def plot_density(data, filename = False, frame = 0, show = False,
             verticalalignment='top', bbox=props)
     
     if (show == False): plt.close()
-    if (filename != False): 
+    if (filename != None): 
         fig.savefig(filename, dpi=300)
     
     return fig, ax
@@ -677,7 +685,7 @@ def animate_density(data, filename, reduction = 3, show = False,
     # Create animation with the update function
     ani = animation.FuncAnimation(fig, update, frames=len(t),
                                   interval=100, blit=False)
-    if (filename != False):
+    if (filename != None):
         if filename.split('.')[1] == 'gif':
             ani.save(filename, writer="pillow", fps=10, dpi=300)
         elif filename.split('.')[1] == 'mp4':

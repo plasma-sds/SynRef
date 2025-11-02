@@ -302,21 +302,23 @@ class Doppler_signal():
     
     
     def __init__(self, working_directory):
+        
         self.path = Path(working_directory)
         
-    
     def __create_complex_signal(self):
-        self.complex_signal = (self.data["amplitude_field"] 
-                               * np.exp(1j * self.data["phase_field"]))
-        self.complex_sig_rel = (self.complex_signal
-                                - np.average(self.complex_signal, axis = 0))
         
+        Antenna_complex_V = (self.Antenna_data["amplitude_field"] 
+                               * np.exp(1j * self.Antenna_data["phase_field"]))
+        self.Antenna_complex_V = (
+            Antenna_complex_V - np.average(Antenna_complex_V, axis = 0))
+        self.Antenna_time = self.Antenna_data["time"]
+        self.Antenna_freq = self.Antenna_data["frequencies"]
         
     def read(self, signal_filename = "signal_field.h5"):
         
         self.signal_filename = signal_filename
-        data = fm.read_ref_signal(self.path, signal_filename=signal_filename)
-        self.data = data
+        self.Antenna_data = fm.read_ref_signal(
+            self.path, signal_filename = signal_filename)
         self.__create_complex_signal()
         
         
@@ -334,10 +336,10 @@ class Doppler_signal():
         
         
     def analyze_cwt(self, scale = "default", frequency_indices = "all",
-                wavelet = 'cmor1.5-1.0'):
+                    wavelet = 'cmor1.5-1.0'):
         
-        t = self.data["time"]
-        f = self.data["frequencies"] # antenna frequencies
+        t = self.Antenna_time
+        f = self.Antenna_freq
         fc = pywt_fc(wavelet) # wavelet reference frequency != antenna freq
         dt = t[1]-t[0]
         
@@ -356,7 +358,7 @@ class Doppler_signal():
                        dtype = np.complex128)
         
         for i, f_ind in enumerate(frequency_indices):
-            V = self.complex_sig_rel[:, f_ind]
+            V = self.Antenna_complex_V[:, f_ind]
             cwt_pos, _ = pywt_cwt(V, scale, wavelet, 
                                          sampling_period = dt)
             cwt_neg, _ = pywt_cwt(np.conj(V), scale, wavelet, 
@@ -384,8 +386,8 @@ class Doppler_signal():
     def analyze_stft(self, frequency_indices = "all", res_fft = "default",
                      window = "default", overlap_percentage = "default"):
         
-        t = self.data["time"]
-        f = self.data["frequencies"] # antenna frequencies
+        t = self.Antenna_time
+        f = self.Antenna_freq
         dt = t[1]-t[0]
         
         if frequency_indices == "all": frequency_indices = np.arange(len(f))
@@ -403,7 +405,7 @@ class Doppler_signal():
                         dtype = np.complex128)
         
         for i, f_ind in enumerate(frequency_indices):
-            V = self.complex_sig_rel[:, f_ind]
+            V = self.Antenna_complex_V[:, f_ind]
             stft[i, :, :] = SFT.stft(V)
             
         stft_data = {
@@ -457,7 +459,7 @@ class Doppler_signal():
                 trshld = (np.max(z) - np.min(z))*0.3 + np.min(z)
             else: trshld = (np.max(z) - np.min(z))*threshold + np.min(z)
             
-            window_size_y = window_size_x = int((nx*ny)**0.5 / 13)
+            window_size_y = window_size_x = int((nx*ny)**0.5 / 12)
             
             # --- Step 1. Find local maxima (integer grid peaks)
             neighborhood = np.ones((window_size_y, window_size_x))
