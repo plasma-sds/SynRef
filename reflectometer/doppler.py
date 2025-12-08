@@ -351,18 +351,20 @@ class Doppler_signal():
         
         nf = len(scale)
         freq = fc/scale/dt
-        # print(freq)
+        # print(fc)
         freq_full = np.concatenate([-freq, freq[::-1]])
         
         cwt = np.zeros((len(frequency_indices), nf*2, len(t)), 
                        dtype = np.complex128)
-        
+        # print("done0")
         for i, f_ind in enumerate(frequency_indices):
             V = self.Antenna_complex_V[:, f_ind]
             cwt_pos, _ = pywt_cwt(V, scale, wavelet, 
                                          sampling_period = dt)
+            # print("done2")
             cwt_neg, _ = pywt_cwt(np.conj(V), scale, wavelet, 
                                          sampling_period = dt)
+            # print("done3")
             cwt_full = np.vstack([cwt_neg, cwt_pos[::-1]])
             cwt[i, :, :] = cwt_full
             
@@ -377,26 +379,27 @@ class Doppler_signal():
         
         self.cwt_data = cwt_data
         
-        self.cwt_peaks = self.find_and_refine_peaks(t, freq_full, np.abs(cwt))
+        
         
         # gauss_fit = self.__find_event(cwt_data)
         # self.cwt_gauss = gauss_fit
+      
         
         
     def analyze_stft(self, frequency_indices = "all", res_fft = "default",
-                     window = "default", overlap_percentage = "default"):
+                     window = "default", hop = "default"):
         
         t = self.Antenna_time
         f = self.Antenna_freq
         dt = t[1]-t[0]
         
         if frequency_indices == "all": frequency_indices = np.arange(len(f))
-        if window == "default": window = int(len(t)/5)
-        if overlap_percentage == "default": overlap_percentage = 0.5
-        if res_fft == "default": res_fft = len(t)*4
+        if window  == "default": window = int(len(t)/5)
+        if hop     == "default": hop = 1
+        if res_fft == "default": res_fft = int(window * 4)
         
-        SFT = ShortTimeFFT(hann(window), hop = int(overlap_percentage*window),
-                           fs = 1/dt, fft_mode = 'centered', mfft = res_fft,
+        SFT = ShortTimeFFT(hann(window), hop = hop, fs = 1/dt,
+                           fft_mode = 'centered', mfft = res_fft,
                            scale_to='magnitude')
         freq = SFT.f
         times = SFT.t(len(t))
@@ -419,15 +422,24 @@ class Doppler_signal():
         
         self.stft_data = stft_data
         
-        self.stft_peaks = self.find_and_refine_peaks(times, freq, np.abs(stft))
+        
         
         # gauss_fit = self.__find_event(stft_data)
         # self.stft_gauss = gauss_fit
     
-
+    def find_peaks_cwt(self, halfsize="default", threshold="default"):
         
+        self.cwt_peaks = self.find_and_refine_peaks(
+            self.cwt_data, halfsize=halfsize, threshold=threshold)
+        
+        
+    def find_peaks_stft(self, halfsize="default", threshold="default"):
+        
+        self.stft_peaks = self.find_and_refine_peaks(
+            self.stft_data, halfsize=halfsize, threshold=threshold)
 
-    def find_and_refine_peaks(self, x, y, Z, 
+
+    def find_and_refine_peaks(self, data, 
                               halfsize="default", threshold="default"):
         """
         Find and refine 2D peaks using centroid interpolation.
@@ -445,10 +457,14 @@ class Doppler_signal():
     
         Returns
         -------
-        peaks : list of dict
-            Each element: {'x': float, 'y': float, 'z': float}
-            containing subgrid coordinates and interpolated peak value.
+        peaks : list of 2D arrays
+            array columns: ['x': float, 'y': float, 'z': float] 
+            array rows: number of detected peaks (arbitrary number)
+            list index: antenna frequency
+            containing subgrid coordinates and interpolated peak values.
         """
+        x,y,Z = data["time"], data["freq"], np.abs(data["matrix"])
+        
         nf, ny, nx = Z.shape
         
         peak_list = []
@@ -459,7 +475,7 @@ class Doppler_signal():
                 trshld = (np.max(z) - np.min(z))*0.3 + np.min(z)
             else: trshld = (np.max(z) - np.min(z))*threshold + np.min(z)
             
-            window_size_y = window_size_x = int((nx*ny)**0.5 / 12)
+            window_size_y = window_size_x = int((nx*ny)**0.5 / 13)
             
             # --- Step 1. Find local maxima (integer grid peaks)
             neighborhood = np.ones((window_size_y, window_size_x))
@@ -515,7 +531,8 @@ class Doppler_signal():
         
                 peaks.append([x_c, y_c, float(z[r, c])])
             peaks = np.asarray(peaks)
-            peaks = peaks[peaks[:, 2].argsort(), :][::-1, :]
+            try: peaks = peaks[peaks[:, 2].argsort(), :][::-1, :]
+            except: peaks = np.asarray([None,None,None])
             peak_list.append(peaks)
         return peak_list
 
@@ -607,37 +624,117 @@ class Doppler_signal():
 
         return (offset + gauss).ravel()
     
-    def write_cwt(self, filename_cwt = "event_data_CWT.json"):
+    def write_cwt_peaks(self, filename_max = "event_data_CWT.json",
+                        filename_peaks = "peaks_data_CWT.h5"):
         
         fa      = (self.cwt_data["frequencies"] * 1.0).tolist()
-        fcwt    = (self.cwt_data["freq"] * 1.0).tolist()
-        tcwt    = (self.cwt_data["time"] * 1.0).tolist()
         eA_cwt  = [self.cwt_peaks[f][0,2] for f in range(len(fa))]
         ef_cwt  = [self.cwt_peaks[f][0,1] for f in range(len(fa))]
         et_cwt  = [self.cwt_peaks[f][0,0] for f in range(len(fa))]
         
         dictionary = {"event_amp": eA_cwt, "event_freq": ef_cwt,
-                      "event_time": et_cwt, "time": tcwt,
-                      "A_frequencies": fa, "T_frequencies": fcwt}
-    
-        return fm.export_dict(dictionary, filename_cwt, path = self.path)
+                      "event_time": et_cwt, "A_frequencies": fa}
         
-    def write_stft(self, filename_stft = "event_data_STFT.json"):
+        from h5py import File
+        with File(self.path / filename_peaks, "w") as f:
+            f.create_dataset("fa", data=fa)
+            for i in range(len(fa)):
+                f.create_dataset(str(fa[i]), data=self.cwt_peaks[i])
+    
+        return fm.export_dict(dictionary, filename_max, path = self.path)
+        
+    def write_stft_peaks(self, filename_max = "event_data_STFT.json",
+                         filename_peaks = "peaks_data_STFT.h5"):
         
         fa       = (self.stft_data["frequencies"] * 1.0).tolist()
-        fstft    = (self.stft_data["freq"] * 1.0).tolist()
-        tstft    = (self.stft_data["time"] * 1.0).tolist()
         eA_stft  = [self.stft_peaks[f][0,2] for f in range(len(fa))]
         ef_stft  = [self.stft_peaks[f][0,1] for f in range(len(fa))]
         et_stft  = [self.stft_peaks[f][0,0] for f in range(len(fa))]
         
         dictionary = {"event_amp": eA_stft, "event_freq": ef_stft,
-                      "event_time": et_stft, "time": tstft,
-                      "A_frequencies": fa, "T_frequencies": fstft}
+                      "event_time": et_stft, "A_frequencies": fa}
+        
+        from h5py import File
+        with File(self.path / filename_peaks, "w") as f:
+            f.create_dataset("fa", data=fa)
+            for i in range(len(fa)):
+                f.create_dataset(str(fa[i]), data=self.stft_peaks[i])
     
-        return fm.export_dict(dictionary, filename_stft, path = self.path)
+        return fm.export_dict(dictionary, filename_max, path = self.path)
+    
+    
+    def read_cwt_peaks(self, filename_peaks = "peaks_data_CWT.h5"):
+        
+        from h5py import File
+        with File(self.path / filename_peaks, "r") as f:
+            self.cwt_peaks = [f[key][()] for key in f.keys() if key != "fa"]
         
         
+    def read_stft_peaks(self, filename_peaks = "peaks_data_STFT.h5"):
+        
+        from h5py import File
+        with File(self.path / filename_peaks, "r") as f:
+            self.stft_peaks = [f[key][()] for key in f.keys() if key != "fa"]
+        
+    
+    def write_cwt_data(self, filename_cwt = "CompSig_CWT.h5"):
+        
+        from h5py import File
+        with File(self.path / filename_cwt, "w") as f:
+            for key, value in self.cwt_data.items():
+                # ensure value is a NumPy array
+                f.create_dataset(key, data=value)
+        
+        return self.path / filename_cwt
+    
+    
+    def write_stft_data(self, filename_stft = "CompSig_STFT.h5"):
+        
+        from h5py import File
+        with File(self.path / filename_stft, "w") as f:
+            for key, value in self.stft_data.items():
+                # ensure value is a NumPy array
+                f.create_dataset(key, data=value)
+        
+        return self.path / filename_stft
+        
+        
+    def read_cwt_data(self, filename_cwt = "CompSig_CWT.h5"):
+        
+        from h5py import File
+        with File(self.path / filename_cwt, "r") as f:
+            self.cwt_data = {key: f[key][()] for key in f.keys()}
+        
+        
+    def read_stft_data(self, filename_stft = "CompSig_STFT.h5"):
+        
+        from h5py import File
+        with File(self.path / filename_stft, "r") as f:
+            self.stft_data = {key: f[key][()] for key in f.keys()}
+        
+        
+    def write_all(self):
+        try:    self.write_cwt_data()
+        except: pass
+        try:    self.write_stft_data()
+        except: pass
+        try:    self.write_cwt_peaks()
+        except: pass
+        try:    self.write_stft_peaks()
+        except: pass
+        
+        
+    def read_all(self):
+        self.read()
+        try:    self.read_cwt_data()
+        except: print("The file is not found: CompSig_CWT.h5")
+        try:    self.read_stft_data()
+        except: print("The file is not found: CompSig_STFT.h5")
+        try:    self.read_cwt_peaks()
+        except: print("The file is not found: peaks_data_CWT.h5")
+        try:    self.read_stft_peaks()
+        except: print("The file is not found: peaks_data_STFT.h5")
+      
             
         
         
