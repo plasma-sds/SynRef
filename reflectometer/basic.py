@@ -123,7 +123,7 @@ class Basic():
         self.__set_simulation_timesteps(reflection_distance=reflection_distance)
         self.__set_beam_waist(waist=beam_waist)
         self.__set_antenna_pos(antenna_pos=antenna_pos)
-        self.__set_outputdata(solver=solver)
+        self.__set_outputdata()
         
   
     def __set_frequency(self, frequency):
@@ -419,15 +419,23 @@ class Basic():
             for j in range(self.data.ny):
                 ez_time[time_index][j] = (ctypes.c_double * self.data.nx)()  # Create the row with ny elements
                 for i in range(self.data.nx):
-                    ez_time[time_index][j][i] = 1
+                    ez_time[time_index][j][i] = 0.0
         self.data.ez_time = ez_time
    
-    def __set_outputdata(self, solver):
+    def __set_outputdata(self):
+        """
+        Allocating memory for the output of the FW2D code. Antenna and electric field vectors.
+        """
+        
+        self.__set_antenna_output()
+        self.__set_ezfinal_output()
+   
+    def __set_antenna_output(self):
         """
         Initialize output arrays for antenna amplitude and phase.
         
         Args:
-            solver (str): Solver type
+            solver (str): None
         """
         antenna_amplitude = (ctypes.c_double * self.data.nx)()  # 1D array for amplitudes
         antenna_phase = (ctypes.c_double * self.data.nx)()  # 1D array for phases
@@ -436,6 +444,42 @@ class Basic():
             antenna_phase[index] = 0.0
         self.data.ampl_ant = antenna_amplitude
         self.data.fase_ant = antenna_phase
+        
+    def __set_ezfinal_output(self):
+        """
+        Initializes the ez_final memory allocation
+        
+        Args:
+            None
+        """
+        ez_final = (ctypes.POINTER(ctypes.c_double) * self.data.ny)()  # Create an array of pointers (for each row)
+        for j in range(self.data.ny):
+            ez_final[j] = (ctypes.c_double * self.data.nx)()  # Create the row with ny elements
+            for i in range(self.data.nx):
+                ez_final[j][i] = 0.0  # Initialize to zero
+        self.data.ez_final = ez_final
+        
+    def run(self):
+        """
+        Execute the Maxwell 2D simulation by calling the C function.
+        
+        This method runs the FDTD simulation and populates the ez_final field
+        with the computed electric field values.
+        
+        Returns:
+            int: Return code from the C function (0 on success)
+        """
+        return self.fw2d.maxwell_2d_omode(ctypes.byref(self.data))
+    
+    @property
+    def ez_final(self):
+        """
+        Get the final electric field (ez_final) as a 2D numpy array.
+        
+        Returns:
+            numpy.ndarray: 2D array of shape (ny, nx) containing the final electric field values
+        """
+        return self.get_fields(kind='electric')
     
     def update_frequency(self, frequency):
         """
