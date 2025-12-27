@@ -403,24 +403,42 @@ class Basic():
             
     def __make_eztime(self):
         """
-        Create a default uniform electric field of 1 V/m
+        Allocate memory for the 3D ez_time array to store electric field at each time step.
         
+        The array structure is [nt][ny][nx] where:
+        - nt: number of temporal iterations
+        - ny: number of grid points along y-axis
+        - nx: number of grid points along x-axis
         
-        b0 = (ctypes.POINTER(ctypes.c_double) * self.data.ny)()  # Create an array of pointers (for each row)
-        for j in range(self.data.ny):
-            b0[j] = (ctypes.c_double * self.data.nx)()  # Create the row with ny elements
-            for i in range(self.data.nx):
-                b0[j][i] = 2.5
-        
+        Note: We store references to the arrays to prevent garbage collection.
         """
-        ez_time = (ctypes.POINTER(ctypes.c_double) * self.data.nt)()  # Create an array of pointers (for each time insatnce)
+        # Store references to prevent garbage collection
+        self._ez_time_arrays = []
+        self._ez_time_row_pointers = []
+        
+        # Create array of nt pointers to pointers
+        ez_time = (ctypes.POINTER(ctypes.POINTER(ctypes.c_double)) * self.data.nt)()
         for time_index in range(self.data.nt):
-            ez_time[time_index] = (ctypes.POINTER(ctypes.c_double) * self.data.ny)()  # Create a pointer array for each row
+            # Create array of ny pointers to doubles
+            row_pointers = (ctypes.POINTER(ctypes.c_double) * self.data.ny)()
+            self._ez_time_row_pointers.append(row_pointers)
+            
             for j in range(self.data.ny):
-                ez_time[time_index][j] = (ctypes.c_double * self.data.nx)()  # Create the row with ny elements
+                # Create array of nx doubles
+                row_data = (ctypes.c_double * self.data.nx)()
+                # Initialize to zero
                 for i in range(self.data.nx):
-                    ez_time[time_index][j][i] = 0.0
-        self.data.ez_time = ez_time
+                    row_data[i] = 0.0
+                # Store reference and cast to pointer
+                self._ez_time_arrays.append(row_data)
+                row_pointers[j] = ctypes.cast(row_data, ctypes.POINTER(ctypes.c_double))
+            
+            # Cast row_pointers array to pointer and store in ez_time
+            ez_time[time_index] = ctypes.cast(row_pointers, ctypes.POINTER(ctypes.POINTER(ctypes.c_double)))
+        
+        # Cast the top-level array to pointer
+        self.data.ez_time = ctypes.cast(ez_time, ctypes.POINTER(ctypes.POINTER(ctypes.POINTER(ctypes.c_double))))
+
    
     def __set_outputdata(self):
         """
@@ -480,6 +498,41 @@ class Basic():
             numpy.ndarray: 2D array of shape (ny, nx) containing the final electric field values
         """
         return self.get_fields(kind='electric')
+    
+    def get_ez_time(self):
+        """
+        Get the electric field evolution over time (ez_time) as a 3D numpy array.
+    
+        Returns:
+        numpy.ndarray: 3D array of shape (nt, ny, nx) containing the electric field
+                     at each temporal iteration. Returns None if ez_time is not available
+                     (e.g., when using 'basic' solver instead of 'ez_evo').
+        """
+        if not hasattr(self.data, 'ez_time') or self.data.ez_time is None:
+            return None
+    
+        # Check if solver supports ez_time
+        if self.solver != 'ez_evo':
+            return None
+    
+        # Convert 3D C array to numpy array
+        ez_time_array = numpy.zeros((self.data.nt, self.data.ny, self.data.nx))
+        for t in range(self.data.nt):
+            for j in range(self.data.ny):
+                for i in range(self.data.nx):
+                    ez_time_array[t, j, i] = self.data.ez_time[t][j][i]
+        return ez_time_array
+
+    @property
+    def ez_time(self):
+        """
+        Get the electric field evolution over time (ez_time) as a 3D numpy array.
+    
+        Returns:
+        numpy.ndarray: 3D array of shape (nt, ny, nx) containing the electric field
+                     at each temporal iteration. Returns None if ez_time is not available.
+        """
+        return self.get_ez_time()
     
     def update_frequency(self, frequency):
         """
