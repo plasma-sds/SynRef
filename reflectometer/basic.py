@@ -16,6 +16,10 @@ from .conversions import from_unit_to_centi
 import scipy.constants as constant
 import matplotlib.pyplot as plt
 from scipy.interpolate import RectBivariateSpline
+try:
+    import imageio
+except ImportError:
+    imageio = None
 
 class InputData(ctypes.Structure):                                  #Input data structure for Basic FW2D
     """
