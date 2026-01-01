@@ -718,3 +718,111 @@ class Basic():
         
         plt.tight_layout()
         plt.show()
+        
+    def generate_gif(self, filename='ez_field_evolution.gif', fps=10, 
+                     time_step_skip=1, vmin=None, vmax=None, cmap='RdBu_r',
+                     figsize=(10, 8), dpi=100, show_progress=True):
+        """
+        Generate a GIF animation showing the evolution of the electric field over time.
+        
+        Args:
+            filename (str): Output filename for the GIF (default: 'ez_field_evolution.gif')
+            fps (int): Frames per second for the animation (default: 10)
+            time_step_skip (int): Skip every N time steps to reduce file size (default: 1, no skipping)
+            vmin (float): Minimum value for color scale (default: None, auto)
+            vmax (float): Maximum value for color scale (default: None, auto)
+            cmap (str): Colormap to use (default: 'RdBu_r')
+            figsize (tuple): Figure size in inches (default: (10, 8))
+            dpi (int): Dots per inch for output (default: 100)
+            show_progress (bool): Show progress messages (default: True)
+        
+        Returns:
+            str: Path to the generated GIF file
+            
+        Raises:
+            ValueError: If ez_time data is not available
+            ImportError: If imageio library is not available
+        """
+        # Check if imageio is available
+        if imageio is None:
+            raise ImportError("imageio is required for GIF generation. Please install it:\n"
+                            "  pip install imageio")
+        
+        # Check if ez_time is available
+        ez_time_data = self.get_ez_time()
+        if ez_time_data is None:
+            raise ValueError("ez_time data is not available. Use solver='ez_evo' to enable time evolution data.")
+        
+        if show_progress:
+            print(f"Generating GIF from {ez_time_data.shape[0]} time steps...")
+        
+        # Get axis coordinates
+        x, y, time = self.get_axis()
+        x_cm = from_unit_to_centi(x)
+        y_cm = from_unit_to_centi(y)
+        
+        # Determine color scale limits
+        if vmin is None:
+            vmin = -numpy.max(numpy.abs(ez_time_data))
+        if vmax is None:
+            vmax = numpy.max(numpy.abs(ez_time_data))
+        
+        # Create frames
+        frames = []
+        total_steps = ez_time_data.shape[0]
+        steps_to_process = list(range(0, total_steps, time_step_skip))
+        
+        for idx, t in enumerate(steps_to_process):
+            if show_progress and (idx % max(1, len(steps_to_process) // 20) == 0 or idx == len(steps_to_process) - 1):
+                print(f"  Processing frame {idx+1}/{len(steps_to_process)} (time step {t+1}/{total_steps})")
+            
+            # Create figure for this frame
+            fig, ax = plt.subplots(figsize=figsize, dpi=dpi)
+            
+            # Get field at this time step
+            ez_frame = ez_time_data[t, :, :]
+            
+            # Plot contour
+            try:
+                img = ax.contourf(x_cm, y_cm, ez_frame, levels=200, 
+                                  cmap=cmap, vmin=vmin, vmax=vmax)
+            except TypeError:
+                img = ax.contourf(x_cm, y_cm, ez_frame.T, levels=200, 
+                                  cmap=cmap, vmin=vmin, vmax=vmax)
+            
+            # Add colorbar
+            cbar = plt.colorbar(img, ax=ax)
+            cbar.set_label('Electric Field [V/m]', fontsize=12, fontweight='bold')
+            cbar.ax.tick_params(labelsize=10)
+            
+            # Set labels and title
+            ax.set_xlabel('X axis [cm]', fontsize=12, fontweight='bold')
+            ax.set_ylabel('Y axis [cm]', fontsize=12, fontweight='bold')
+            ax.set_title(f'Electric Field Evolution\nTime: {time[t]*1e9:.2f} ns (Step {t+1}/{total_steps})', 
+                        fontsize=14, fontweight='bold')
+            ax.set_aspect('equal', adjustable='box')
+            ax.tick_params(axis='both', labelsize=10)
+            
+            # Convert figure to image using imageio
+            from io import BytesIO
+            buf = BytesIO()
+            fig.savefig(buf, format='png', dpi=dpi, bbox_inches='tight')
+            buf.seek(0)
+            
+            # Read image with imageio
+            frame_img = imageio.imread(buf)
+            frames.append(frame_img)
+            
+            plt.close(fig)
+        
+        # Save as GIF using imageio
+        if show_progress:
+            print(f"Saving GIF to {filename}...")
+        
+        imageio.mimsave(filename, frames, fps=fps, loop=0)
+        
+        if show_progress:
+            print(f"GIF saved successfully: {filename}")
+        
+        return filename
+
