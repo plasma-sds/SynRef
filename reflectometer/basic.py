@@ -52,6 +52,8 @@ class InputDataTime(ctypes.Structure):                                  #Input d
     This structure contains all the parameters needed for the electromagnetic
     wave propagation simulation including frequency, spatial resolution,
     plasma density, magnetic field, and antenna configuration.
+    
+    NOTE: Field order MUST match fdtd_2d_omode_ezf_time.h exactly!
     """
     _fields_ = [
         ("f0", ctypes.c_double),                                            # Inpute wave frequency [Hz]
@@ -64,8 +66,8 @@ class InputDataTime(ctypes.Structure):                                  #Input d
         ("angle", ctypes.c_double),                                         # Angle of propagation in [deg]
         ("b0", ctypes.POINTER(ctypes.POINTER(ctypes.c_double))),            # Magnetic field
         ("ne", ctypes.POINTER(ctypes.POINTER(ctypes.c_double))),            # Plasma density field
+        ("ez_final", ctypes.POINTER(ctypes.POINTER(ctypes.c_double))),      # Final version of the ez field (MUST come before ez_time!)
         ("ez_time", ctypes.POINTER(ctypes.POINTER(ctypes.POINTER(ctypes.c_double)))),      # Time evolution version of the ez field
-        ("ez_final", ctypes.POINTER(ctypes.POINTER(ctypes.c_double))),      # Final version of the ez field
         ("ampl_ant", ctypes.POINTER(ctypes.c_double)),                      # E amplitude at the antenna
         ("fase_ant", ctypes.POINTER(ctypes.c_double)),                      # Phase at the antenna
     ]
@@ -397,7 +399,6 @@ class Basic():
             self.fw2d = ctypes.CDLL(self.fw2d_path)
             self.fw2d.maxwell_2d_omode.argtypes = [ctypes.POINTER(InputDataTime)]
             self.fw2d.maxwell_2d_omode.restype = ctypes.c_int
-            self.__make_eztime()
         elif solver == 'multi_ant':
             pass
         elif solver == 'multi_evo':
@@ -414,35 +415,103 @@ class Basic():
         - ny: number of grid points along y-axis
         - nx: number of grid points along x-axis
         
-        Note: We store references to the arrays to prevent garbage collection.
+        Uses the same allocation pattern as ez_final, but with an additional time dimension.
+        This function ensures all memory is properly allocated and all references are maintained
+        to prevent garbage collection.
         """
-        # Store references to prevent garbage collection
-        self._ez_time_arrays = []
-        self._ez_time_row_pointers = []
+        # Verify dimensions are set
+        if not hasattr(self.data, 'nt') or self.data.nt <= 0:
+            raise ValueError("data.nt must be set before allocating ez_time")
+        if not hasattr(self.data, 'ny') or self.data.ny <= 0:
+            raise ValueError("data.ny must be set before allocating ez_time")
+        if not hasattr(self.data, 'nx') or self.data.nx <= 0:
+            raise ValueError("data.nx must be set before allocating ez_time")
         
-        # Create array of nt pointers to pointers
+        print(f"Allocating ez_time array: nt={self.data.nt}, ny={self.data.ny}, nx={self.data.nx}")
+        
+        # Create array of nt pointers to pointers (first dimension: time)
+        # This creates an array that can hold nt pointers, each pointing to a 2D array
         ez_time = (ctypes.POINTER(ctypes.POINTER(ctypes.c_double)) * self.data.nt)()
+        
+        # Store references to prevent garbage collection - CRITICAL for all levels
+        self._ez_time_top_level = ez_time  # Store reference to top-level array
+        self._ez_time_arrays = []  # Store all data arrays (nt * ny arrays)
+        self._ez_time_row_pointers = []  # Store all row pointer arrays (nt arrays)
+        
+        # Allocate memory for each time step
         for time_index in range(self.data.nt):
-            # Create array of ny pointers to doubles
+            # Create array of ny pointers (second dimension: y, same pattern as ez_final)
+            # Each element will point to a row of nx doubles
             row_pointers = (ctypes.POINTER(ctypes.c_double) * self.data.ny)()
-            self._ez_time_row_pointers.append(row_pointers)
+            self._ez_time_row_pointers.append(row_pointers)  # Store reference
             
+            # Allocate and initialize each row
             for j in range(self.data.ny):
-                # Create array of nx doubles
+                # Create array of nx doubles (third dimension: x, same pattern as ez_final[j])
                 row_data = (ctypes.c_double * self.data.nx)()
                 # Initialize to zero
                 for i in range(self.data.nx):
                     row_data[i] = 0.0
-                # Store reference and cast to pointer
+                
+                # Assign the row data array to the row pointer
+                row_pointers[j] = row_data
+                
+                # Store reference to prevent garbage collection
                 self._ez_time_arrays.append(row_data)
-                row_pointers[j] = ctypes.cast(row_data, ctypes.POINTER(ctypes.c_double))
             
-            # Cast row_pointers array to pointer and store in ez_time
-            ez_time[time_index] = ctypes.cast(row_pointers, ctypes.POINTER(ctypes.POINTER(ctypes.c_double)))
+            # Assign the row_pointers array to the time slice
+            ez_time[time_index] = row_pointers
+            
+            # Progress indicator for large allocations
+            if (time_index + 1) % 100 == 0 or time_index == self.data.nt - 1:
+                print(f"  Allocated {time_index + 1}/{self.data.nt} time steps")
         
-        # Cast the top-level array to pointer
+        # Assign the complete 3D array to the data structure
+        # Cast to pointer type to match the C structure definition
         self.data.ez_time = ctypes.cast(ez_time, ctypes.POINTER(ctypes.POINTER(ctypes.POINTER(ctypes.c_double))))
-
+        
+        # Verify allocation by checking a few sample pointers
+        print("Verifying ez_time allocation...")
+        try:
+            if self.data.ez_time is None:
+                raise RuntimeError("ez_time allocation failed: data.ez_time is None")
+            
+            # Check first time step
+            if self.data.ez_time[0] is None:
+                raise RuntimeError("ez_time allocation failed: data.ez_time[0] is None")
+            if self.data.ez_time[0][0] is None:
+                raise RuntimeError("ez_time allocation failed: data.ez_time[0][0] is None")
+            
+            # Check last time step
+            last_idx = self.data.nt - 1
+            if self.data.ez_time[last_idx] is None:
+                raise RuntimeError(f"ez_time allocation failed: data.ez_time[{last_idx}] is None")
+            if self.data.ez_time[last_idx][0] is None:
+                raise RuntimeError(f"ez_time allocation failed: data.ez_time[{last_idx}][0] is None")
+            
+            # Check a middle time step (around where corruption was happening)
+            if self.data.nt > 833:
+                mid_idx = 833
+                if self.data.ez_time[mid_idx] is None:
+                    raise RuntimeError(f"ez_time allocation failed: data.ez_time[{mid_idx}] is None")
+                if self.data.ez_time[mid_idx][0] is None:
+                    raise RuntimeError(f"ez_time allocation failed: data.ez_time[{mid_idx}][0] is None")
+            
+            # Verify we can read/write to a sample location
+            test_value = 123.456
+            self.data.ez_time[0][0][0] = test_value
+            if abs(self.data.ez_time[0][0][0] - test_value) > 1e-10:
+                raise RuntimeError("ez_time allocation failed: cannot write/read values")
+            self.data.ez_time[0][0][0] = 0.0  # Reset
+            
+            print(f"ez_time allocation successful: {self.data.nt} time steps, {self.data.ny} rows, {self.data.nx} columns")
+            print(f"  Stored {len(self._ez_time_arrays)} data array references")
+            print(f"  Stored {len(self._ez_time_row_pointers)} row pointer array references")
+            print(f"  Verified read/write access to allocated memory")
+            
+        except Exception as e:
+            print(f"ERROR during ez_time verification: {e}")
+            raise
    
     def __set_outputdata(self):
         """
@@ -451,6 +520,9 @@ class Basic():
         
         self.__set_antenna_output()
         self.__set_ezfinal_output()
+        # Allocate ez_time if using ez_evo solver (after dimensions are set)
+        if self.solver == 'ez_evo':
+            self.__make_eztime()
    
     def __set_antenna_output(self):
         """
@@ -475,10 +547,14 @@ class Basic():
             None
         """
         ez_final = (ctypes.POINTER(ctypes.c_double) * self.data.ny)()  # Create an array of pointers (for each row)
+        # Store references to prevent garbage collection
+        self._ez_final_arrays = []
         for j in range(self.data.ny):
-            ez_final[j] = (ctypes.c_double * self.data.nx)()  # Create the row with ny elements
+            row_data = (ctypes.c_double * self.data.nx)()  # Create the row with nx elements
             for i in range(self.data.nx):
-                ez_final[j][i] = 0.0  # Initialize to zero
+                row_data[i] = 0.0  # Initialize to zero
+            ez_final[j] = row_data  # Assign the row to the pointer array
+            self._ez_final_arrays.append(row_data)  # Store reference to prevent GC
         self.data.ez_final = ez_final
         
     def run(self):
@@ -772,6 +848,9 @@ class Basic():
         total_steps = ez_time_data.shape[0]
         steps_to_process = list(range(0, total_steps, time_step_skip))
         
+        # Track first frame dimensions to ensure consistency
+        first_frame_shape = None
+        
         for idx, t in enumerate(steps_to_process):
             if show_progress and (idx % max(1, len(steps_to_process) // 20) == 0 or idx == len(steps_to_process) - 1):
                 print(f"  Processing frame {idx+1}/{len(steps_to_process)} (time step {t+1}/{total_steps})")
@@ -811,6 +890,36 @@ class Basic():
             
             # Read image with imageio
             frame_img = imageio.imread(buf)
+            
+            # Ensure all frames have the same dimensions
+            if first_frame_shape is None:
+                first_frame_shape = frame_img.shape
+            elif frame_img.shape != first_frame_shape:
+                # Resize frame to match first frame dimensions
+                try:
+                    from PIL import Image
+                    pil_img = Image.fromarray(frame_img)
+                    pil_img = pil_img.resize((first_frame_shape[1], first_frame_shape[0]), Image.Resampling.LANCZOS)
+                    frame_img = numpy.array(pil_img)
+                except ImportError:
+                    # Fallback to scipy if PIL not available
+                    try:
+                        from scipy.ndimage import zoom
+                        zoom_factors = [first_frame_shape[i] / frame_img.shape[i] for i in range(len(first_frame_shape))]
+                        frame_img = zoom(frame_img, zoom_factors, order=1)
+                    except ImportError:
+                        # Last resort: crop or pad to match
+                        if frame_img.shape[0] > first_frame_shape[0]:
+                            frame_img = frame_img[:first_frame_shape[0], :]
+                        if frame_img.shape[1] > first_frame_shape[1]:
+                            frame_img = frame_img[:, :first_frame_shape[1]]
+                        if frame_img.shape != first_frame_shape:
+                            # Pad if needed
+                            pad_h = max(0, first_frame_shape[0] - frame_img.shape[0])
+                            pad_w = max(0, first_frame_shape[1] - frame_img.shape[1])
+                            if pad_h > 0 or pad_w > 0:
+                                frame_img = numpy.pad(frame_img, ((0, pad_h), (0, pad_w), (0, 0) if len(frame_img.shape) == 3 else (0, 0)), mode='constant')
+            
             frames.append(frame_img)
             
             plt.close(fig)
