@@ -12,10 +12,13 @@ electromagnetic wave propagation solvers.
 import os
 import ctypes
 import numpy
+
+
 from .conversions import from_unit_to_centi
 import scipy.constants as constant
 import matplotlib.pyplot as plt
 from scipy.interpolate import RectBivariateSpline
+from hardware.utils.antenna.pyramidal_farfield_to_fw2d import pyramidal_farfield_to_fw2d
 
 class InputData(ctypes.Structure):                                  #Input data structure for Basic FW2D
     """
@@ -31,9 +34,8 @@ class InputData(ctypes.Structure):                                  #Input data 
         ("nx", ctypes.c_int),                                               # Number of points along x axis [-]
         ("ny", ctypes.c_int),                                               # Number of points along y axis [-] 
         ("dx", ctypes.c_double),                                            # Spatail resolution [-]
-        ("yante", ctypes.c_int),                                            # Position of the antenna
-        ("waist", ctypes.c_int),                                            # Beam waist in mesh point numbers [-]
-        ("angle", ctypes.c_double),                                         # Angle of propagation in [deg]
+        ("ampl_inc", ctypes.c_double),                                      # Amplitude array of the incident wave [-]
+        ("phase_inc", ctypes.c_double),                                     # Phase array of the incident wave [-]
         ("b0", ctypes.POINTER(ctypes.POINTER(ctypes.c_double))),            # Magnetic field
         ("ne", ctypes.POINTER(ctypes.POINTER(ctypes.c_double))),            # Plasma density field
         ("ez_final", ctypes.POINTER(ctypes.POINTER(ctypes.c_double))),      # Final version of the ez field
@@ -41,6 +43,10 @@ class InputData(ctypes.Structure):                                  #Input data 
         ("fase_ant", ctypes.POINTER(ctypes.c_double)),                      # Phase at the antenna
     ]
     
+""" Moved to Python environment:
+("yante", ctypes.c_int),                                            # Position of the antenna
+("waist", ctypes.c_int),                                            # Beam waist in mesh point numbers [-]
+("angle", ctypes.c_double),                                         # Angle of propagation in [deg]"""
     
 class Basic():
     """
@@ -71,7 +77,8 @@ class Basic():
     def __init__(self, wavemode='O', solver='basic', frequency=3e10, 
                  density='default', b_field='default', x='default', y='default',
                  antenna_pos='default', beam_waist='default', angle=0, 
-                 reflection_distance='default'):
+                 reflection_distance='default', wavesource='gaussian',
+                 horn_a1=40, horn_b1=40, horn_rho1=50, horn_rho2=50, horn_x=-10, horn_y=30):
         """
         Initialize the Basic FW2D simulation.
         
@@ -87,6 +94,7 @@ class Basic():
             beam_waist (str or float): Beam waist in meters or 'default'
             angle (float): Propagation angle in degrees
             reflection_distance (str or float): Reflection distance in meters or 'default'
+            wavesource (str or numpy.ndarray): Wave source field or 'default'
         """
         
         self.__set_solver_and_datastruct(wavemode=wavemode, solver=solver)
@@ -96,11 +104,18 @@ class Basic():
         self.__set_magnetic_field(x=x, y=y, b_field=b_field)
         self.__set_angle_antenna(angle=angle)
         self.__set_simulation_timesteps(reflection_distance=reflection_distance)
-        self.__set_beam_waist(waist=beam_waist)
+        self.__set_beam_waist(beam_waist=beam_waist)
         self.__set_antenna_pos(antenna_pos=antenna_pos)
         self.__set_outputdata(solver=solver)
-        
-  
+        self.__set_ampl_inc_phase_inc(wavesource=wavesource)
+
+        self.horn_a1 = horn_a1
+        self.horn_b1 = horn_b1
+        self.horn_rho1 = horn_rho1
+        self.horn_rho2 = horn_rho2
+        self.horn_x = horn_x
+        self.horn_y = horn_y
+
     def __set_frequency(self, frequency):
         """
         Set the wave frequency and update the data structure.
@@ -275,7 +290,7 @@ class Basic():
             angle (float): Propagation angle in degrees
         """
         self.angle = angle
-        self.data.angle = angle
+        
         
     def __set_simulation_timesteps(self, reflection_distance):
         """
@@ -301,19 +316,20 @@ class Basic():
         self.nt = int(simulation_time // self.dt)
         self.data.nt = self.nt
         
-    def __set_beam_waist(self, waist):
+    def __set_beam_waist(self, beam_waist):
         """
         Set the beam waist.
         
         Args:
-            waist (str or float): Beam waist in meters or 'default'
+            beam_waist (str or float): Beam waist in meters or 'default'
         """
-        if isinstance(waist, str):
+        if isinstance(beam_waist, str):
             self.beam_waist_si = 0.03 # in cm
         else:
-            self.beam_waist_si = waist
-        self.data.waist = int(self.beam_waist_si // self.dx)
-    
+            self.beam_waist_si = beam_waist
+        waist = int(self.beam_waist_si // self.dx)
+        return waist
+
     def __set_antenna_pos(self, antenna_pos):
         """
         Set the antenna position.
@@ -325,7 +341,8 @@ class Basic():
             self.antenna_pos = 0.05 #in cm
         else:
             self.antenna_pos = antenna_pos
-        self.data.yante = int(self.ny - (self.antenna_pos - self.y[0]) // self.dx)
+        yante = int(self.ny - (self.antenna_pos - self.y[0]) // self.dx)
+        return yante
         
     def __set_solver_and_datastruct(self, wavemode, solver):
         """
@@ -390,7 +407,88 @@ class Basic():
             antenna_phase[index] = 0.0
         self.data.ampl_ant = antenna_amplitude
         self.data.fase_ant = antenna_phase
+
+    def __set_ampl_inc_phase_inc(self, wavesource):
+        if wavesource == 'gaussian':
+            self.__set_gaussian_wave()
+        elif wavesource == 'pyramidal_horn':
+            self.__set_pyramidal_horn_wave()
+        elif isinstance(wavesource, str):
+            raise ValueError(
+                "Unknown wavesource. Choose 'gaussian' or 'pyramidal_horn'.")
+        else:
+            raise TypeError(
+                f"Expected str, got {type(wavesource).__name__}.")
     
+    def __set_gaussian_wave(self):
+        """
+        Python translation of the fw2d C aperture initialisation block.
+
+        Computes a Gaussian amplitude profile with a linear phase ramp
+        across the antenna plane (j = 0 .. ny).
+
+        Used properties:
+        ----------
+        ny    : int    last grid index along y
+        yante : int    grid index of the beam centre
+        waist : float  Gaussian beam waist in grid units
+        angle : float  beam steering angle from boresight [rad]
+        dx    : float  grid spacing [m]
+        f0    : float  frequency [Hz]
+        C     : float  speed of light [m/s]  (default 3e8)
+
+        Returns
+        -------
+        ampl_inc  : ndarray shape (ny+1,)   Gaussian amplitude  [0, 1]
+        phase_inc : ndarray shape (ny+1,)   wrapped phase [rad] in (-pi, pi]
+        """
+        j_arr = numpy.arange(self.ny + 1, dtype=float)
+        yante = self.__set_antenna_pos(self.antenna_pos)
+        waist = self.__set_beam_waist(self.beam_waist_si)
+
+        # --- Amplitude: Gaussian centred at yante, width = waist/cos(angle) ---
+        aux       = numpy.cos(self.angle) * (j_arr - yante) / float(waist)
+        ampl_inc  = numpy.exp(-(aux ** 2))
+
+        # --- Phase: linear ramp, step = k*dx*sin(angle) per element ---
+        dfase     = 2.0 * numpy.pi * self.frequency / C * self.dx * numpy.sin(self.angle)
+        fase      = -j_arr * dfase                 # fase starts at 0 for j=0,
+                                                # decrements by dfase each step
+
+        # Wrap to (-pi, pi]  — equivalent to the C loop's wrapping
+        phase_inc = (fase + numpy.pi) % (2.0 * numpy.pi) - numpy.pi
+
+        self.data.ampl_inc = ampl_inc
+        self.data.phase_inc = phase_inc
+
+    def __set_pyramidal_horn_wave(self):
+        """
+        Set ampl_inc / phase_inc from the pyramidal horn far-field pattern.
+
+        Horn geometry attributes must be set before calling this method:
+            self.horn_a1    : H-plane aperture width [m]
+            self.horn_b1    : E-plane aperture height [m]
+            self.horn_rho1  : E-plane slant length [m]
+            self.horn_rho2  : H-plane slant length [m]
+            self.horn_x     : horn x-position in grid units (<=0)
+            self.horn_y     : horn y-position in grid units
+        """
+        ampl_inc, phase_inc = pyramidal_farfield_to_fw2d(
+            ny       = self.ny,
+            dy       = self.dx,           # same spacing in both directions
+            dx       = self.dx,
+            x_horn   = self.horn_x,
+            y_horn   = self.horn_y,
+            angle    = numpy.radians(self.angle),
+            a1       = self.horn_a1,
+            b1       = self.horn_b1,
+            rho1     = self.horn_rho1,
+            rho2     = self.horn_rho2,
+            freq     = self.frequency,
+        )
+        self.data.ampl_inc = ampl_inc
+        self.data.phase_inc = phase_inc
+
     def update_frequency(self, frequency):
         """
         Update the wave frequency and recalculate dependent parameters.
@@ -408,7 +506,7 @@ class Basic():
         self.__set_magnetic_field(x=x_old, y=y_old, b_field=magnetic)
         self.__set_angle_antenna(angle=self.angle)
         self.__set_simulation_timesteps(reflection_distance=self.reflection_distance)
-        self.__set_beam_waist(waist=self.beam_waist_si)
+        self.__set_beam_waist(beam_waist=self.beam_waist_si)
         self.__set_antenna_pos(antenna_pos=self.antenna_pos)        
         
     def update_density(self, density, x, y, reflection_distance='default'):
@@ -458,7 +556,7 @@ class Basic():
         Args:
             waist (float): New beam waist in meters
         """
-        self.__set_beam_waist(waist=waist)
+        self.__set_beam_waist(beam_waist=waist)
     
     def update_solver(self, wavemode, solver):
         """
@@ -571,3 +669,58 @@ class Basic():
         
         plt.tight_layout()
         plt.show()
+
+    def print_aperture(ampl_inc, phase_inc, ny, yante, max_rows=10):
+        """
+        Print a summary of the aperture arrays so you can cross-check with the C output.
+
+        Prints:
+        - key scalar values (dfase, first/last phase step)
+        - a table of j, ampl, phase for:
+            first max_rows//2 elements
+            the region around yante (beam centre)
+            last  max_rows//2 elements
+        """
+        n = len(ampl_inc)
+        half = max_rows // 2
+
+        print("=" * 58)
+        print(f"  ny={ny}   yante={yante}   total points={n}")
+        print(f"  ampl range : [{ampl_inc.min():.6f}, {ampl_inc.max():.6f}]")
+        print(f"  phase range: [{numpy.degrees(phase_inc.min()):.2f}°,"
+            f" {numpy.degrees(phase_inc.max()):.2f}°]")
+        print(f"  ampl  at yante : {ampl_inc[yante]:.6f}  (should be 1.0)")
+        print(f"  phase at j=0   : {numpy.degrees(phase_inc[0]):.4f}°  (should be 0.0)")
+        print("-" * 58)
+        print(f"  {'j':>5}  {'ampl':>10}  {'phase [deg]':>12}  {'phase [rad]':>12}")
+        print("-" * 58)
+
+        # indices to print: start, around yante, end
+        indices = sorted(set(
+            list(range(0, min(half, n))) +
+            list(range(max(0, yante - half//2), min(n, yante + half//2 + 1))) +
+            list(range(max(0, n - half), n))
+        ))
+
+        prev = -1
+        for j in indices:
+            if prev >= 0 and j > prev + 1:
+                print(f"  {'...':>5}")
+            print(f"  {j:>5}  {ampl_inc[j]:>10.6f}  "
+                f"{numpy.degrees(phase_inc[j]):>12.4f}  {phase_inc[j]:>12.6f}")
+            prev = j
+
+        print("=" * 58)
+
+
+# --- Example run ---
+freq  = 10.0e9
+lam   = 3e8 / freq
+ny    = 200
+yante = 100
+waist = 30
+dx    = 0.5 * lam
+angle = numpy.radians(20.0)
+
+ampl, phase = Basic.__set_gaussian_aperture(ny, yante, waist, angle, dx, freq)
+print_aperture(ampl, phase, ny, yante, max_rows=12)

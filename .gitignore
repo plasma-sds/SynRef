@@ -135,6 +135,7 @@ venv/
 ENV/
 env.bak/
 venv.bak/
+synref_env/
 
 # Spyder project settings
 .spyderproject
@@ -175,3 +176,5 @@ cython_debug/
 
 # SynRef related stuff
 /fw2d
+
+*Zone.Identifier
