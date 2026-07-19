@@ -125,7 +125,7 @@ def pyramidal_farfield_to_fw2d(
     # Evaluate complex horn far-field at each (theta_j, phi_j)
     # -------------------------------------------------------------------
     E_theta, E_phi, _ = pyramidal_horn_E(
-        theta_j, phi_j, a1, b1, rho1, rho2, freq, E1=E1, r=1.0
+        theta_j, phi_j, a1, b1, rho1, rho2, freq, E1=E1, r=R_j
     )
 
     # -------------------------------------------------------------------

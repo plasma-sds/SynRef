@@ -78,27 +78,69 @@ class Basic():
         fw2d: C library interface for the solver
     """
     
-    def __init__(self, wavemode='O', solver='basic', frequency=3e10, 
-                 density='default', b_field='default', x='default', y='default',
-                 antenna_pos='default', beam_waist='default', angle=0, 
-                 reflection_distance='default', wavesource='gaussian',
-                 horn_a1=40, horn_b1=40, horn_rho1=50, horn_rho2=50, horn_x=-10, horn_y=30):
+    def __init__(self, wavemode='O', solver='basic', frequency=3e10,
+                density='default', b_field='default', x='default', y='default',
+                antenna_pos='default', beam_waist='default', angle=0,
+                reflection_distance='default', wavesource='gaussian',
+                horn_a1=40, horn_b1=40, horn_rho1=50, horn_rho2=50,
+                horn_x=-10, horn_y=200):
         """
         Initialize the Basic FW2D simulation.
-        
+
         Args:
-            wavemode (str): Wave mode ('O' for O-mode, 'X' for X-mode)
-            solver (str): Solver type ('basic', 'ez_evo', 'multi_ant', 'multi_evo', 'antenna')
-            frequency (float): Wave frequency in Hz
-            density (str or numpy.ndarray): Plasma density field or 'default'
-            b_field (str or numpy.ndarray): Magnetic field or 'default'
-            x (str or numpy.ndarray): X-axis coordinates or 'default'
-            y (str or numpy.ndarray): Y-axis coordinates or 'default'
-            antenna_pos (str or float): Antenna position in meters or 'default'
-            beam_waist (str or float): Beam waist in meters or 'default'
-            angle (float): Propagation angle in degrees
-            reflection_distance (str or float): Reflection distance in meters or 'default'
-            wavesource (str or numpy.ndarray): Wave source field or 'default'
+            wavemode (str): Wave propagation mode. 'O' for O-mode (ordinary),
+                'X' for X-mode (extraordinary). Default 'O'.
+            solver (str): Solver variant to load. One of 'basic', 'ez_evo',
+                'multi_ant', 'multi_evo', or 'antenna'. Determines which
+                compiled .so backend and struct layout are used. Default 'basic'.
+            frequency (float): Probing wave frequency in Hz. Default 3e10 (30 GHz).
+            density (str or numpy.ndarray): Plasma density field ne(x, y) in m^-3.
+                Pass 'default' to use a built-in preset profile, or provide a
+                2D numpy array matching the (ny, nx) grid shape.
+            b_field (str or numpy.ndarray): Background magnetic field in Tesla.
+                Pass 'default' for a built-in preset, or a 2D numpy array
+                matching the (ny, nx) grid shape.
+            x (str or numpy.ndarray): X-axis grid coordinates in meters.
+                Pass 'default' to auto-generate from nx and dx, or provide
+                a 1D numpy array explicitly.
+            y (str or numpy.ndarray): Y-axis grid coordinates in meters.
+                Pass 'default' to auto-generate from ny and dx, or provide
+                a 1D numpy array explicitly.
+            antenna_pos (str or float): Antenna position along the Y-axis,
+                in meters. Pass 'default' to use a built-in default position,
+                or a float to set it explicitly.
+            beam_waist (str or float): Beam waist (spot size) in meters,
+                used to shape the Gaussian source amplitude taper.
+                Pass 'default' for a built-in value, or a float to override.
+            angle (float): Antenna/beam boresight elevation angle, in degrees,
+                measured from the horizontal (X) axis. Default 0 (broadside).
+            reflection_distance (str or float): Expected distance in meters
+                to the reflecting plasma layer, used to size the simulation
+                time window. Pass 'default' to auto-estimate it, or a float
+                to set it explicitly.
+            wavesource (str): Source field model used to compute ampl_inc and
+                phase_inc. One of 'gaussian' (analytic Gaussian beam with
+                linear phase ramp) or 'pyramidal_horn' (far-field pattern of
+                a pyramidal horn antenna, via Fresnel-integral computation).
+                Default 'gaussian'.
+            horn_a1 (float): Pyramidal horn H-plane aperture width, in
+                millimeters. Only used when wavesource='pyramidal_horn'.
+                Default 40.
+            horn_b1 (float): Pyramidal horn E-plane aperture height, in
+                millimeters. Only used when wavesource='pyramidal_horn'.
+                Default 40.
+            horn_rho1 (float): Pyramidal horn E-plane slant length (apex to
+                aperture), in millimeters. Only used when
+                wavesource='pyramidal_horn'. Default 50.
+            horn_rho2 (float): Pyramidal horn H-plane slant length (apex to
+                aperture), in millimeters. Only used when
+                wavesource='pyramidal_horn'. Default 50.
+            horn_x (float): Horn aperture X-position relative to the fw2d
+                injection boundary, in the same length units as the grid.
+                Only used when wavesource='pyramidal_horn'. Default -10.
+            horn_y (float): Horn aperture Y-position (boresight center row),
+                in the same length units as the grid. Only used when
+                wavesource='pyramidal_horn'. Default 40.
         """
         
         self._bufs = {}
@@ -113,14 +155,15 @@ class Basic():
         self.__set_antenna_pos(antenna_pos=antenna_pos)
         self.__set_outputdata(solver=solver)
         self.__set_ezfinal_output()
-        self.__set_ampl_inc_phase_inc(wavesource=wavesource)
-
+        
         self.horn_a1 = horn_a1
         self.horn_b1 = horn_b1
         self.horn_rho1 = horn_rho1
         self.horn_rho2 = horn_rho2
         self.horn_x = horn_x
         self.horn_y = horn_y
+
+        self.__set_ampl_inc_phase_inc(wavesource=wavesource)
     
         self._all_buffers = [
         self.data.ne,
@@ -498,8 +541,6 @@ class Basic():
         phase_phys = (fase + numpy.pi) % (2.0 * numpy.pi) - numpy.pi
 
         # Now build EXTENDED grid arrays to match C
-        NXPML = 8
-        TFSF  = NXPML + 10
         ny_phys = self.data.ny
         ny_ext  = ny_phys - 1 + 2*TFSF
 
@@ -545,29 +586,42 @@ class Basic():
             self.horn_x     : horn x-position in grid units (<=0)
             self.horn_y     : horn y-position in grid units
         """
-        ampl_inc, phase_inc = pyramidal_farfield_to_fw2d(
+        ampl_inc_phys, phase_inc_phys = pyramidal_farfield_to_fw2d(
             ny       = self.ny,
             dy       = self.dx,           # same spacing in both directions
             dx       = self.dx,
             x_horn   = self.horn_x,
             y_horn   = self.horn_y,
-            angle    = numpy.radians(self.angle),
+            angle    = numpy.deg2rad(self.angle),
             a1       = self.horn_a1,
             b1       = self.horn_b1,
             rho1     = self.horn_rho1,
             rho2     = self.horn_rho2,
             freq     = self.frequency,
         )
-        ny = self.ny
+        
+        ny_phys = self.data.ny
+        ny_ext  = ny_phys - 1 + 2*TFSF
 
-        ampl_2d  = (ctypes.POINTER(ctypes.c_double) * (ny + 1))()
-        phase_2d = (ctypes.POINTER(ctypes.c_double) * (ny + 1))()
+        ampl_2d  = (ctypes.POINTER(ctypes.c_double) * (ny_ext + 1))()
+        phase_2d = (ctypes.POINTER(ctypes.c_double) * (ny_ext + 1))()
+        self._ampl_inc_rows  = []
+        self._phase_inc_rows = []
 
-        for j in range(ny + 1):
-            ampl_2d[j]  = (ctypes.c_double * 1)()
-            phase_2d[j] = (ctypes.c_double * 1)()
-            ampl_2d[j][0]  = float(ampl_inc[j])
-            phase_2d[j][0] = float(phase_inc[j])
+        for j_ext in range(ny_ext + 1):
+            row_ampl  = (ctypes.c_double * 1)()
+            row_phase = (ctypes.c_double * 1)()
+            if TFSF <= j_ext <= TFSF + ny_phys:
+                j_p = j_ext - TFSF
+                row_ampl[0]  = float(ampl_inc_phys[j_p])
+                row_phase[0] = float(phase_inc_phys[j_p])
+            else:
+                row_ampl[0]  = 0.0
+                row_phase[0] = 0.0
+            ampl_2d[j_ext]  = row_ampl
+            phase_2d[j_ext] = row_phase
+            self._ampl_inc_rows.append(row_ampl)
+            self._phase_inc_rows.append(row_phase)
 
         self._bufs['ampl_inc']  = ampl_2d
         self._bufs['phase_inc'] = phase_2d
