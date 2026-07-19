@@ -1,1 +1,6 @@
 This folder contains the compiled versions of FW2D that the reflectometry synthetic diagnostic uses.
+
+Contents of this folder are gitignored.
+
+Build .so file with or similar:
+gcc -shared -fPIC -O2 -o fw2d/maxwell_2d_omode_antenna.so fw2d/maxwell_2d_omode_antenna.c -lm

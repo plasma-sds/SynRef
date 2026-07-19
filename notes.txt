@@ -1,0 +1,99 @@
+2026.04.21.
+
+méterre van a plazmától. 22 GHz - 90 GHz. 
+távoltér? megnézni a tárgyról. Távoltér számító függvényt definiálni.
+
+Milyen jel jön be, időben állandó jel. 6 MHz a mérési frekvencia. Állandó értéket mintavételez.
+#
+# antenna további zajt ad hozzá?
+# 
+# Gauss függvénnyel randomizálni, azt hozzáadni a jelhez.
+#
+# mi az a tag ami mean = 0 és csak torzít és mi az ami információt ad hozzá.
+#
+# az összeadás már milivoltban történik meg.
+#
+# mit használ az irodalom a WG meg antenna noise-ra. Voltage noise? 
+#
+# noised signal összerakása a következő lépés. Jel aplitudo [reasonable from V/m inputok benne], plazma hőmérséklet [1-6 keV], receiver noise. valtoztatására milyen SNR-t ad meg.
+# mértékegység legyen mindenhol V/m. 
+# tegyük át FFT-be, nobok mozgatására hogyan változik a spektrum.
+
+# unittest.TestCase
+
+2026.04.29 AI tesztelés:
+# reflectometry/
+# ├── __init__.py
+# ├── utils.py
+# ├── signal.py
+# ├── environment.py
+# ├── components/
+# │   ├── __init__.py
+# │   ├── antenna.py
+# │   ├── waveguide.py
+# │   ├── receiver.py
+# ├── cascade.py
+# └── measurement.py
+
+
+
+
+=================================================
+2026.05.05:
+
+V/m to signal conversion: aperture effective area, Sradiated to be checked
+
+parameter check with FFT
+
+
+=================================================
+2026.06.02.:
+Plasma SDS - Fields: sűrűség profilokat hoz létre.
+mintavételezési frekfencia 12 MHz-en mér. Mert ilyen időállandóval rendelkeznek a keresett folyamatok.
++ zajos lesz a jel, mert a nagy frekin kicsi minatvételi időablak, kicsi lesz az integrált jel.
+
+Nyalábfrekik és eff mintavételezési freki hogyan szól bele. Játszani ezekkel a frekikkel.
+
+A noise modellben a B az a mintavételezési freki vagy mintafreki / nquist kritérium (2 maradhat)
+
+
+=================================================
+2026.06.30.:
+feature_doppler/reflectometer/basic.py
+What is reflection distance? --> reflection from the far end of the simulation space, aka longest possible simulation time
+
+Antenna can be positioned on the y axix only
+
+_set_solver_path: X mode is not defined
+
+----------------------------------------------------
+feature_doppler/reflectometer/functions.py:
+l 355: result = reflectometer.fw2d.maxwell_2d_omode(ctypes.byref(reflectometer.data))
+l 430: result = reflectometer.fw2d.maxwell_2d_omode(ctypes.byref(reflectometer.data))
+basic.py:
+        self.fw2d = ctypes.CDLL(self.fw2d_path)
+        self.fw2d.maxwell_2d_omode.argtypes = [ctypes.POINTER(InputData)]
+        self.fw2d.maxwell_2d_omode.restype = ctypes.c_int
+
+
+ampl_inc[j][0] = exp(-aux);
+    phase_inc[j][0] = fase;
+
+ezt if-felni. Ha van antenna akkor onnan, ha nincs akkor gauss.
+
+Hullám generálás legyen pythonban
+- Gauss
+- horn antenna like
+- pyramid antenna like
+- aperure antenna like
+
+Balanis 13-43a és b közelíti egy piramisantenna apertúra téreloszlását.
+Lásd perplexity code question!!!
+
+
+=================================================
+2026.07.14.:
+XANT - hol kerül definiálásra?
+
+
+

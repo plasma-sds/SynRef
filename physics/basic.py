@@ -12,6 +12,7 @@ electromagnetic wave propagation solvers.
 import os
 import ctypes
 import numpy
+import datetime
 
 
 from .conversions import from_unit_to_centi
@@ -19,6 +20,9 @@ import scipy.constants as constant
 import matplotlib.pyplot as plt
 from scipy.interpolate import RectBivariateSpline
 from hardware.utils.antenna.pyramidal_farfield_to_fw2d import pyramidal_farfield_to_fw2d
+
+NXPML = 8
+TFSF = NXPML + 10  # 18
 
 class InputData(ctypes.Structure):                                  #Input data structure for Basic FW2D
     """
@@ -34,11 +38,11 @@ class InputData(ctypes.Structure):                                  #Input data 
         ("nx", ctypes.c_int),                                               # Number of points along x axis [-]
         ("ny", ctypes.c_int),                                               # Number of points along y axis [-] 
         ("dx", ctypes.c_double),                                            # Spatail resolution [-]
-        ("ampl_inc", ctypes.c_double),                                      # Amplitude array of the incident wave [-]
-        ("phase_inc", ctypes.c_double),                                     # Phase array of the incident wave [-]
+        ("ampl_inc", ctypes.POINTER(ctypes.POINTER(ctypes.c_double))),                                      # Amplitude array of the incident wave [-]
+        ("phase_inc", ctypes.POINTER(ctypes.POINTER(ctypes.c_double))),                                     # Phase array of the incident wave [-]
         ("b0", ctypes.POINTER(ctypes.POINTER(ctypes.c_double))),            # Magnetic field
         ("ne", ctypes.POINTER(ctypes.POINTER(ctypes.c_double))),            # Plasma density field
-        ("ez_final", ctypes.POINTER(ctypes.POINTER(ctypes.c_double))),      # Final version of the ez field
+        ("ez_final", ctypes.POINTER(ctypes.POINTER(ctypes.c_double))),
         ("ampl_ant", ctypes.POINTER(ctypes.c_double)),                      # E amplitude at the antenna
         ("fase_ant", ctypes.POINTER(ctypes.c_double)),                      # Phase at the antenna
     ]
@@ -84,7 +88,7 @@ class Basic():
         
         Args:
             wavemode (str): Wave mode ('O' for O-mode, 'X' for X-mode)
-            solver (str): Solver type ('basic', 'ez_evo', 'multi_ant', 'multi_evo')
+            solver (str): Solver type ('basic', 'ez_evo', 'multi_ant', 'multi_evo', 'antenna')
             frequency (float): Wave frequency in Hz
             density (str or numpy.ndarray): Plasma density field or 'default'
             b_field (str or numpy.ndarray): Magnetic field or 'default'
@@ -97,6 +101,7 @@ class Basic():
             wavesource (str or numpy.ndarray): Wave source field or 'default'
         """
         
+        self._bufs = {}
         self.__set_solver_and_datastruct(wavemode=wavemode, solver=solver)
         self.__set_frequency(frequency)
         self.__set_frequency_dependence()
@@ -107,6 +112,7 @@ class Basic():
         self.__set_beam_waist(beam_waist=beam_waist)
         self.__set_antenna_pos(antenna_pos=antenna_pos)
         self.__set_outputdata(solver=solver)
+        self.__set_ezfinal_output()
         self.__set_ampl_inc_phase_inc(wavesource=wavesource)
 
         self.horn_a1 = horn_a1
@@ -115,6 +121,30 @@ class Basic():
         self.horn_rho2 = horn_rho2
         self.horn_x = horn_x
         self.horn_y = horn_y
+    
+        self._all_buffers = [
+        self.data.ne,
+        self.data.b0,
+        self.data.ampl_inc,
+        self.data.phase_inc,
+        #self.data.ez_final,
+        self.data.ampl_ant,
+        self.data.fase_ant,
+        ]
+        print("Buffer ids:", [id(b) for b in self._all_buffers])
+
+        print("Buffer addresses:")
+        for k, v in self._bufs.items():
+            try:
+                addr = ctypes.addressof(v[0])
+            except TypeError:
+                addr = ctypes.addressof(v)
+            print(f"  {k:12s}: id={id(v)}  ctypes_addr={addr}")
+
+        print("Python struct size:", ctypes.sizeof(InputData)) 
+
+        ny_phys = self.data.ny          # physical grid points (e.g. 132)
+        ny_ext  = ny_phys - 1 + 2*TFSF  # extended grid in C
 
     def __set_frequency(self, frequency):
         """
@@ -193,8 +223,8 @@ class Basic():
         Creates a linear density ramp from 0 to 3e19 m^-3 starting at x=50mm.
         The density is constant along the y-axis.
         """
-        self.x = numpy.arange(0,100,1) * 0.001# in m
-        self.y = numpy.arange(0,200,1) * 0.001# in m
+        self.x = numpy.arange(0,200,1) * 0.001# in m
+        self.y = numpy.arange(0,400,1) * 0.001# in m
         self.__set_spatial_resolutions()
         
         profile = numpy.zeros(self.nx)
@@ -206,7 +236,8 @@ class Basic():
             ne[j] = (ctypes.c_double * self.data.nx)()
             for i in range(self.data.nx):
                 ne[j][i] = default_density[j,i]
-        self.data.ne = ne
+        self._bufs['ne'] = ne
+        self.data.ne = self._bufs['ne']
         
     def __fit_density_to_grid(self, x, y, density):
         """
@@ -231,7 +262,8 @@ class Basic():
             ne[j] = (ctypes.c_double * self.data.nx)()
             for i in range(self.data.nx):
                 ne[j][i] = interp_density[j,i]
-        self.data.ne = ne      
+        self._bufs['ne'] = ne
+        self.data.ne = self._bufs['ne']  
         
     def __set_magnetic_field(self, x, y, b_field):
         """
@@ -259,7 +291,8 @@ class Basic():
             b0[j] = (ctypes.c_double * self.data.nx)()  # Create the row with ny elements
             for i in range(self.data.nx):
                 b0[j][i] = 2.5
-        self.data.b0 = b0
+        self._bufs['b0'] = b0
+        self.data.b0 = self._bufs['b0']
         
     def __fit_bfield_to_grid(self, x, y, b_field):
         """
@@ -280,7 +313,8 @@ class Basic():
             b0[j] = (ctypes.c_double * self.data.nx)()  # Create the row with ny elements
             for i in range(self.data.nx):
                 b0[j][i] = interp_bfield[j,i]
-        self.data.b0 = b0
+        self._bufs['b0'] = b0
+        self.data.b0 = self._bufs['b0']
         
     def __set_angle_antenna(self, angle):
         """
@@ -338,7 +372,7 @@ class Basic():
             antenna_pos (str or float): Antenna position in meters or 'default'
         """
         if isinstance(antenna_pos, str):
-            self.antenna_pos = 0.05 #in cm
+            self.antenna_pos = 0.005 #in meters
         else:
             self.antenna_pos = antenna_pos
         yante = int(self.ny - (self.antenna_pos - self.y[0]) // self.dx)
@@ -383,6 +417,10 @@ class Basic():
             self.data = InputData()
             self.solver = solver
             solver_path = '_ezf_time'
+        elif solver == 'antenna':
+            self.data = InputData()
+            self.solver = solver
+            solver_path = '_antenna'
         elif solver == 'multi_ant':
             pass
         elif solver == 'multi_evo':
@@ -391,7 +429,7 @@ class Basic():
             raise ValueError('The requested solver type is not supported. Please consult documentation.')
    
         self.fw2d_path = os.path.join(os.path.dirname(__file__), '..', 
-                                      'fw2d', mode_path+solver_path+'.dll')
+                                      'fw2d', mode_path+solver_path+'.so')
         
     def __set_outputdata(self, solver):
         """
@@ -405,8 +443,12 @@ class Basic():
         for index in range(self.data.nx):
             antenna_amplitude[index] = 1.0
             antenna_phase[index] = 0.0
-        self.data.ampl_ant = antenna_amplitude
-        self.data.fase_ant = antenna_phase
+
+        self._bufs['ampl_ant']  = antenna_amplitude
+        self._bufs['fase_ant']  = antenna_phase
+        self.data.ampl_ant  = self._bufs['ampl_ant']
+        self.data.fase_ant  = self._bufs['fase_ant']
+
 
     def __set_ampl_inc_phase_inc(self, wavesource):
         if wavesource == 'gaussian':
@@ -442,24 +484,54 @@ class Basic():
         ampl_inc  : ndarray shape (ny+1,)   Gaussian amplitude  [0, 1]
         phase_inc : ndarray shape (ny+1,)   wrapped phase [rad] in (-pi, pi]
         """
-        j_arr = numpy.arange(self.ny + 1, dtype=float)
-        yante = self.__set_antenna_pos(self.antenna_pos)
-        waist = self.__set_beam_waist(self.beam_waist_si)
+        j_phys = numpy.arange(self.data.ny + 1, dtype=float)
+        yante  = self.__set_antenna_pos(self.antenna_pos)
+        waist  = self.__set_beam_waist(self.beam_waist_si)
 
-        # --- Amplitude: Gaussian centred at yante, width = waist/cos(angle) ---
-        aux       = numpy.cos(self.angle) * (j_arr - yante) / float(waist)
-        ampl_inc  = numpy.exp(-(aux ** 2))
+        # Amplitude on PHYSICAL grid (0 .. ny_phys), as before
+        aux      = numpy.cos(numpy.deg2rad(self.angle)) * (j_phys - yante) / float(waist)
+        ampl_phys  = numpy.exp(-(aux ** 2))
 
-        # --- Phase: linear ramp, step = k*dx*sin(angle) per element ---
-        dfase     = 2.0 * numpy.pi * self.frequency / C * self.dx * numpy.sin(self.angle)
-        fase      = -j_arr * dfase                 # fase starts at 0 for j=0,
-                                                # decrements by dfase each step
+        # Phase on PHYSICAL grid (0 .. ny_phys)
+        dfase      = 2.0 * numpy.pi * self.frequency / constant.c * self.dx * numpy.sin(numpy.deg2rad(self.angle))
+        fase       = -j_phys * dfase
+        phase_phys = (fase + numpy.pi) % (2.0 * numpy.pi) - numpy.pi
 
-        # Wrap to (-pi, pi]  — equivalent to the C loop's wrapping
-        phase_inc = (fase + numpy.pi) % (2.0 * numpy.pi) - numpy.pi
+        # Now build EXTENDED grid arrays to match C
+        NXPML = 8
+        TFSF  = NXPML + 10
+        ny_phys = self.data.ny
+        ny_ext  = ny_phys - 1 + 2*TFSF
 
-        self.data.ampl_inc = ampl_inc
-        self.data.phase_inc = phase_inc
+        ampl_2d  = (ctypes.POINTER(ctypes.c_double) * (ny_ext + 1))()
+        phase_2d = (ctypes.POINTER(ctypes.c_double) * (ny_ext + 1))()
+        self._ampl_inc_rows  = []
+        self._phase_inc_rows = []
+
+        for j_ext in range(ny_ext + 1):
+            row_ampl  = (ctypes.c_double * 1)()
+            row_phase = (ctypes.c_double * 1)()
+
+            # map extended index j_ext to physical index j_phys = j_ext - TFSF
+            if TFSF <= j_ext <= TFSF + ny_phys:
+                j_p = j_ext - TFSF
+                row_ampl[0]  = float(ampl_phys[j_p])
+                row_phase[0] = float(phase_phys[j_p])
+            else:
+                # in PML / outside physical region → zero
+                row_ampl[0]  = 0.0
+                row_phase[0] = 0.0
+
+            ampl_2d[j_ext]  = row_ampl
+            phase_2d[j_ext] = row_phase
+            self._ampl_inc_rows.append(row_ampl)
+            self._phase_inc_rows.append(row_phase)
+
+        # keep top-level pointers alive
+        self._bufs['ampl_inc']  = ampl_2d
+        self._bufs['phase_inc'] = phase_2d
+        self.data.ampl_inc  = self._bufs['ampl_inc']
+        self.data.phase_inc = self._bufs['phase_inc']
 
     def __set_pyramidal_horn_wave(self):
         """
@@ -486,8 +558,21 @@ class Basic():
             rho2     = self.horn_rho2,
             freq     = self.frequency,
         )
-        self.data.ampl_inc = ampl_inc
-        self.data.phase_inc = phase_inc
+        ny = self.ny
+
+        ampl_2d  = (ctypes.POINTER(ctypes.c_double) * (ny + 1))()
+        phase_2d = (ctypes.POINTER(ctypes.c_double) * (ny + 1))()
+
+        for j in range(ny + 1):
+            ampl_2d[j]  = (ctypes.c_double * 1)()
+            phase_2d[j] = (ctypes.c_double * 1)()
+            ampl_2d[j][0]  = float(ampl_inc[j])
+            phase_2d[j][0] = float(phase_inc[j])
+
+        self._bufs['ampl_inc']  = ampl_2d
+        self._bufs['phase_inc'] = phase_2d
+        self.data.ampl_inc  = self._bufs['ampl_inc']
+        self.data.phase_inc = self._bufs['phase_inc']
 
     def update_frequency(self, frequency):
         """
@@ -618,6 +703,52 @@ class Basic():
         time = numpy.arange(self.data.nt)*self.dt
         return x, y, time
     
+    def __set_ezfinal_output(self):
+        """
+        Initializes the ez_final memory allocation
+        
+        Args:
+            None
+        """
+        ez_final = (ctypes.POINTER(ctypes.c_double) * self.data.ny)()  # Create an array of pointers (for each row)
+        # Store references to prevent garbage collection
+        self._ez_final_arrays = []
+        for j in range(self.data.ny):
+            row_data = (ctypes.c_double * self.data.nx)()  # Create the row with nx elements
+            for i in range(self.data.nx):
+                row_data[i] = 0.0  # Initialize to zero
+            ez_final[j] = row_data  # Assign the row to the pointer array
+            self._ez_final_arrays.append(row_data)  # Store reference to prevent GC
+        self.data.ez_final = ez_final
+    
+    def run(self):
+        """
+        Execute the fw2d C solver.
+        
+        Calls maxwell_2d_omode() in the compiled .so library,
+        passing the fully populated InputData struct.
+        The result is written back into self.data.ez_final.
+        
+        Raises:
+            RuntimeError: If the C solver returns a non-zero exit code.
+        """
+        print(f"nx={self.data.nx}, ny={self.data.ny}, nt={self.data.nt}")
+        print(f"dx={self.data.dx}, f0={self.data.f0}")
+        print(f"ne ptr: {self.data.ne}")
+        print(f"b0 ptr: {self.data.b0}")
+        print(f"ampl_inc ptr: {self.data.ampl_inc}")
+        print(f"phase_inc ptr: {self.data.phase_inc}")
+        #print(f"ez_final ptr: {self.data.ez_final}")
+        print(f"ampl_ant ptr: {self.data.ampl_ant}")
+        print(f"fase_ant ptr: {self.data.fase_ant}")
+        print("ampl_inc check:")
+        for j in range(80, min(90, self.data.ny)):
+            print(f"  j={j}: ampl={self._bufs['ampl_inc'][j][0]:.6f}  phase={self._bufs['phase_inc'][j][0]:.6f}")
+
+        print("Calling C solver...")
+        result = self.fw2d.maxwell_2d_omode(ctypes.byref(self.data))
+        print(f"C solver returned: {result}")
+    
     def plot_results(self, title=''):
         """
         Plot the plasma density field, the magnetic field and the electic field.
@@ -665,62 +796,27 @@ class Basic():
         col = fig.colorbar(img_ez, ax=ax[1])
         col.ax.tick_params(labelsize= 12, which='both')
         col.ax.set_ylabel('Electric Field [V/m]',fontsize=12, fontweight = 'bold')
+
+            # --- Overlay antenna boresight line on both panels ---
+        yante = self.__set_antenna_pos(self.antenna_pos)
+        x0_cm = from_unit_to_centi(x[0])
+        y0_cm = from_unit_to_centi(y[yante])
+
+        # Extend the line across the full X-range of the domain
+        x_line = numpy.array([x[0], x[-1]])
+        # angle is boresight elevation; y = y0 + (x - x0) * tan(angle)
+        y_line = y[yante] + (x_line - x[0]) * numpy.tan(numpy.deg2rad(self.angle))
+
+        x_line_cm = from_unit_to_centi(x_line)
+        y_line_cm = from_unit_to_centi(y_line)
+
+        for a in ax:
+            a.plot(x_line_cm, y_line_cm, color='lime', linewidth=2,
+                linestyle='--', label='Antenna boresight')
+            a.plot(x0_cm, y0_cm, marker='o', color='lime', markersize=8,
+                markeredgecolor='black')
+            a.legend(loc='upper right', fontsize=10)
         
-        
+        timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
         plt.tight_layout()
-        plt.show()
-
-    def print_aperture(ampl_inc, phase_inc, ny, yante, max_rows=10):
-        """
-        Print a summary of the aperture arrays so you can cross-check with the C output.
-
-        Prints:
-        - key scalar values (dfase, first/last phase step)
-        - a table of j, ampl, phase for:
-            first max_rows//2 elements
-            the region around yante (beam centre)
-            last  max_rows//2 elements
-        """
-        n = len(ampl_inc)
-        half = max_rows // 2
-
-        print("=" * 58)
-        print(f"  ny={ny}   yante={yante}   total points={n}")
-        print(f"  ampl range : [{ampl_inc.min():.6f}, {ampl_inc.max():.6f}]")
-        print(f"  phase range: [{numpy.degrees(phase_inc.min()):.2f}°,"
-            f" {numpy.degrees(phase_inc.max()):.2f}°]")
-        print(f"  ampl  at yante : {ampl_inc[yante]:.6f}  (should be 1.0)")
-        print(f"  phase at j=0   : {numpy.degrees(phase_inc[0]):.4f}°  (should be 0.0)")
-        print("-" * 58)
-        print(f"  {'j':>5}  {'ampl':>10}  {'phase [deg]':>12}  {'phase [rad]':>12}")
-        print("-" * 58)
-
-        # indices to print: start, around yante, end
-        indices = sorted(set(
-            list(range(0, min(half, n))) +
-            list(range(max(0, yante - half//2), min(n, yante + half//2 + 1))) +
-            list(range(max(0, n - half), n))
-        ))
-
-        prev = -1
-        for j in indices:
-            if prev >= 0 and j > prev + 1:
-                print(f"  {'...':>5}")
-            print(f"  {j:>5}  {ampl_inc[j]:>10.6f}  "
-                f"{numpy.degrees(phase_inc[j]):>12.4f}  {phase_inc[j]:>12.6f}")
-            prev = j
-
-        print("=" * 58)
-
-
-# --- Example run ---
-freq  = 10.0e9
-lam   = 3e8 / freq
-ny    = 200
-yante = 100
-waist = 30
-dx    = 0.5 * lam
-angle = numpy.radians(20.0)
-
-ampl, phase = Basic.__set_gaussian_aperture(ny, yante, waist, angle, dx, freq)
-print_aperture(ampl, phase, ny, yante, max_rows=12)
+        plt.savefig(f"plots/antenna_wave_{timestamp}.png")
