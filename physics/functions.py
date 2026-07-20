@@ -16,6 +16,8 @@ sys.path.append(os.path.dirname(__file__))
 import file_management as fm
 
 
+
+
 def get_Omode_cutoff_density(frequency):
     """
     Calculate the O-mode cut-off density for a given frequency.
@@ -535,3 +537,16 @@ def get_full_sweep(reflectometer, density, x, y, frequencies, frames,
     except Exception as e:
         print(f"Full sweep failed: {e}")
     return amplitudes, phases
+
+def antenna_pos_to_index(antenna_pos, y0, ny, dx):
+    """
+    Convert a physical antenna Y-position (in meters) to a grid row index,
+    using the same convention as the Gaussian wave source.
+    """
+    return int(ny - (antenna_pos - y0) // dx)
+
+def meter_to_ind(distance_m, dx):
+    """
+    Convert a physical distance (in meters) to a grid row index,
+    """
+    return int(distance_m // dx)

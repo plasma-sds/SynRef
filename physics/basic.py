@@ -20,6 +20,7 @@ import scipy.constants as constant
 import matplotlib.pyplot as plt
 from scipy.interpolate import RectBivariateSpline
 from hardware.utils.antenna.pyramidal_farfield_to_fw2d import pyramidal_farfield_to_fw2d
+from physics.functions import antenna_pos_to_index
 
 NXPML = 8
 TFSF = NXPML + 10  # 18
@@ -82,8 +83,8 @@ class Basic():
                 density='default', b_field='default', x='default', y='default',
                 antenna_pos='default', beam_waist='default', angle=0,
                 reflection_distance='default', wavesource='gaussian',
-                horn_a1=40, horn_b1=40, horn_rho1=50, horn_rho2=50,
-                horn_x=-10, horn_y=200):
+                horn_a1=40e-3, horn_b1=40-3, horn_rho1=50-3, horn_rho2=50-3,
+                horn_x=-0.1, E1=3):
         """
         Initialize the Basic FW2D simulation.
 
@@ -161,7 +162,7 @@ class Basic():
         self.horn_rho1 = horn_rho1
         self.horn_rho2 = horn_rho2
         self.horn_x = horn_x
-        self.horn_y = horn_y
+        self.E1     = E1
 
         self.__set_ampl_inc_phase_inc(wavesource=wavesource)
     
@@ -418,7 +419,7 @@ class Basic():
             self.antenna_pos = 0.005 #in meters
         else:
             self.antenna_pos = antenna_pos
-        yante = int(self.ny - (self.antenna_pos - self.y[0]) // self.dx)
+        yante = antenna_pos_to_index(self.antenna_pos, self.y[0], self.ny, self.dx)
         return yante
         
     def __set_solver_and_datastruct(self, wavemode, solver):
@@ -515,7 +516,7 @@ class Basic():
         Used properties:
         ----------
         ny    : int    last grid index along y
-        yante : int    grid index of the beam centre
+        yante : int    grid index of thebeam center
         waist : float  Gaussian beam waist in grid units
         angle : float  beam steering angle from boresight [rad]
         dx    : float  grid spacing [m]
@@ -583,21 +584,26 @@ class Basic():
             self.horn_b1    : E-plane aperture height [m]
             self.horn_rho1  : E-plane slant length [m]
             self.horn_rho2  : H-plane slant length [m]
-            self.horn_x     : horn x-position in grid units (<=0)
-            self.horn_y     : horn y-position in grid units
+            self.horn_x     : horn x-position in [m] (<=0)
+            self.horn_y     : horn y-position in [m]
         """
+        yante = self.__set_antenna_pos(self.antenna_pos)
+
         ampl_inc_phys, phase_inc_phys = pyramidal_farfield_to_fw2d(
+            y        = self.y,
             ny       = self.ny,
             dy       = self.dx,           # same spacing in both directions
             dx       = self.dx,
             x_horn   = self.horn_x,
-            y_horn   = self.horn_y,
+            antenna_pos   = self.antenna_pos,
+            yante    = yante,
             angle    = numpy.deg2rad(self.angle),
             a1       = self.horn_a1,
             b1       = self.horn_b1,
             rho1     = self.horn_rho1,
             rho2     = self.horn_rho2,
             freq     = self.frequency,
+            E1       = self.E1
         )
         
         ny_phys = self.data.ny
@@ -851,25 +857,29 @@ class Basic():
         col.ax.tick_params(labelsize= 12, which='both')
         col.ax.set_ylabel('Electric Field [V/m]',fontsize=12, fontweight = 'bold')
 
-            # --- Overlay antenna boresight line on both panels ---
-        yante = self.__set_antenna_pos(self.antenna_pos)
-        x0_cm = from_unit_to_centi(x[0])
-        y0_cm = from_unit_to_centi(y[yante])
+        # --- Overlay antenna boresight line on both panels ---
+        ante = True
+        if ante:
+            yante = self.__set_antenna_pos(self.antenna_pos)
 
-        # Extend the line across the full X-range of the domain
-        x_line = numpy.array([x[0], x[-1]])
-        # angle is boresight elevation; y = y0 + (x - x0) * tan(angle)
-        y_line = y[yante] + (x_line - x[0]) * numpy.tan(numpy.deg2rad(self.angle))
+            # Horn's true physical position (horn_x is negative, i.e. behind the domain)
+            x0_cm = from_unit_to_centi(self.horn_x)
+            y0_cm = from_unit_to_centi(self.antenna_pos)
 
-        x_line_cm = from_unit_to_centi(x_line)
-        y_line_cm = from_unit_to_centi(y_line)
+            # Extend the boresight ray from the horn position across the domain's X-range
+            x_line = numpy.array([self.horn_x, x[-1]])
+            # angle is boresight elevation; y = y0 + (x - x0) * tan(angle), now anchored at horn_x
+            y_line = self.antenna_pos + (x_line - self.horn_x) * numpy.tan(numpy.deg2rad(self.angle))
 
-        for a in ax:
-            a.plot(x_line_cm, y_line_cm, color='lime', linewidth=2,
-                linestyle='--', label='Antenna boresight')
-            a.plot(x0_cm, y0_cm, marker='o', color='lime', markersize=8,
-                markeredgecolor='black')
-            a.legend(loc='upper right', fontsize=10)
+            x_line_cm = from_unit_to_centi(x_line)
+            y_line_cm = from_unit_to_centi(y_line)
+
+            for a in ax:
+                a.plot(x_line_cm, y_line_cm, color='lime', linewidth=2,
+                    linestyle='--', label='Antenna boresight')
+                a.plot(x0_cm, y0_cm, marker='o', color='lime', markersize=8,
+                    markeredgecolor='black')
+                a.legend(loc='upper right', fontsize=10)
         
         timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
         plt.tight_layout()

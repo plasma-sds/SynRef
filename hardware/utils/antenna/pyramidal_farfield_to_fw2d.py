@@ -1,16 +1,20 @@
 import numpy as np
 from scipy.special import fresnel as _scipy_fresnel
 from hardware.utils.antenna.pyramidal_horn_farfield_E_U import pyramidal_horn_E
+from physics.functions import antenna_pos_to_index
+from physics.functions import meter_to_ind
 
 # -----------------------------------------------------------------------
 # BRIDGE: horn far-field → fw2d ampl_inc / phase_inc
 # -----------------------------------------------------------------------
 def pyramidal_farfield_to_fw2d(
+    y,                # y grid of simulation space
     ny,               # number of fw2d grid points along y (0..ny)
     dy,               # fw2d grid spacing along y  [m]
     dx,               # fw2d grid spacing along x  [m]
-    x_horn,           # horn x-position in grid units (must be <= 0)
-    y_horn,           # horn y-position in grid units (can be <0, 0..ny, or >ny)
+    x_horn,           # horn x-position [m] (must be <= 0)
+    antenna_pos,           # horn y-position [m] (can be <0, 0..ny, or >ny)
+    yante,            
     angle,            # beam steering angle from the C code [rad]
                       #   = 0 → boresight along +x
                       #   > 0 → beam tilted toward +y
@@ -67,29 +71,32 @@ def pyramidal_farfield_to_fw2d(
     k   = 2.0 * np.pi * freq / 3e8
     j_arr = np.arange(ny + 1, dtype=float)
 
-    # -------------------------------------------------------------------
-    # Physical coordinates
-    # -------------------------------------------------------------------
-    # Grid point j is at (0, j*dy) in physical space.
-    # Horn is at (x_horn*dx, y_horn*dy).
-    x_horn_phys = x_horn * dx
-    y_horn_phys = y_horn * dy
-
-    j_ref = y_horn - x_horn * np.tan(angle)
+    j_ref_ind = meter_to_ind(antenna_pos, dx) - meter_to_ind(x_horn, dx) * np.tan(angle)
+    j_ref_m   = antenna_pos - x_horn * np.tan(angle)
 
     # Vector from horn to each grid point j
-    vec_x = 0.0 - x_horn_phys                    # same for all j (scalar)
-    vec_y = j_arr * dy - y_horn_phys              # varies with j
+    vec_x_ind = 0.0 - meter_to_ind(x_horn, dx)                    # same for all j (scalar)
+    vec_y_ind = j_arr - meter_to_ind(antenna_pos, dx)             # varies with j
+
+    vec_x_m = 0.0 - x_horn
+    vec_y_m = j_arr * dx - antenna_pos
 
     # Distance from horn to each grid point j
-    R_j = np.sqrt(vec_x**2 + vec_y**2)
+    R_j_ind = np.sqrt(vec_x_ind**2 + vec_y_ind**2)
+    R_j_m = np.sqrt(vec_x_m**2 + vec_y_m**2)
 
     # -------------------------------------------------------------------
     # Reference point: grid point at j ref (beam centre)
     # -------------------------------------------------------------------
-    vec_x_ref = vec_x
-    vec_y_ref = j_ref * dy - y_horn_phys
-    R_ref     = np.sqrt(vec_x_ref**2 + vec_y_ref**2)
+    vec_x_ref_ind = vec_x_ind
+    vec_y_ref_ind = j_ref_ind - meter_to_ind(antenna_pos, dx)
+
+    vec_x_ref_m = vec_x_m
+    vec_y_ref_m = j_ref_m - antenna_pos
+
+
+    R_ref_ind     = np.sqrt(vec_x_ref_ind**2 + vec_y_ref_ind**2)
+    R_ref_m     = np.sqrt(vec_x_ref_m**2 + vec_y_ref_m**2)
 
     # -------------------------------------------------------------------
     # Decompose each vec_j into boresight and perpendicular components.
@@ -109,8 +116,8 @@ def pyramidal_farfield_to_fw2d(
     # For the horn pattern phi is ALWAYS pi/2 (E-plane) because the
     # fw2d grid is 2-D and the transverse direction IS the E-plane.
     # -------------------------------------------------------------------
-    along_j = vec_x * np.cos(angle) + vec_y * np.sin(angle)
-    perp_j  = -vec_x * np.sin(angle) + vec_y * np.cos(angle)
+    along_j = vec_x_m * np.cos(angle) + vec_y_m * np.sin(angle)
+    perp_j  = -vec_x_m * np.sin(angle) + vec_y_m * np.cos(angle)
 
     theta_j = np.arctan2(np.abs(perp_j), along_j)   # polar, 0..pi
     sign_j  = np.sign(perp_j)                        # which side of boresight
@@ -125,7 +132,7 @@ def pyramidal_farfield_to_fw2d(
     # Evaluate complex horn far-field at each (theta_j, phi_j)
     # -------------------------------------------------------------------
     E_theta, E_phi, _ = pyramidal_horn_E(
-        theta_j, phi_j, a1, b1, rho1, rho2, freq, E1=E1, r=R_j
+        theta_j, phi_j, a1, b1, rho1, rho2, freq, E1=E1, r=R_j_m
     )
 
     # -------------------------------------------------------------------
@@ -168,7 +175,7 @@ def pyramidal_farfield_to_fw2d(
     # This reproduces the effect of the original linear phase ramp but now
     # correctly accounts for the curved (spherical) phase fronts of the horn.
     # -------------------------------------------------------------------
-    prop_phase = -k * (R_j - R_ref)
+    prop_phase = -k * (R_j_m - R_ref_m)
     F_complex  = F_complex * np.exp(1j * prop_phase)
 
     # -------------------------------------------------------------------
@@ -179,14 +186,14 @@ def pyramidal_farfield_to_fw2d(
         raise ValueError("Pattern is zero everywhere — check horn parameters.")
     F_norm = F_complex / max_amp 
 
-    ampl_inc  = np.abs(F_norm)
-    phase_inc = np.angle(F_norm)          # wrapped to (-pi, pi] automatically
+    ampl_inc  = np.abs(E_theta)
+    phase_inc = np.angle(E_theta)          # wrapped to (-pi, pi] automatically
 
     return ampl_inc, phase_inc
 
 
-import matplotlib.pyplot as plt
-
+"""import matplotlib.pyplot as plt
+y =  np.arange(0,400,1) * 0.001
 freq = 10.0e9
 lam  = 3e8 / freq
 a1   = 12.0 * lam
@@ -204,7 +211,7 @@ y_horn = 150
 angle_rad = np.radians(40.0)
 
 ampl, phase = pyramidal_farfield_to_fw2d(
-            ny, dy, dx, x_horn, y_horn, angle_rad,
+            y, ny, dy, dx, x_horn, y_horn, angle_rad,
             a1, b1, rho1, rho2, freq)
 
 # -----------------------------------------------------------------------
@@ -267,4 +274,4 @@ if __name__ == "__main__":
 
     plt.tight_layout()
     plt.savefig("horn_aperture_v4.png", dpi=150)
-    print("Saved horn_aperture_v4.png")
+    print("Saved horn_aperture_v4.png")"""
