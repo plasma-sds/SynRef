@@ -13,6 +13,7 @@ import os
 import ctypes
 import numpy
 import datetime
+import platform
 
 
 from .conversions import from_unit_to_centi
@@ -471,9 +472,19 @@ class Basic():
             pass
         else:
             raise ValueError('The requested solver type is not supported. Please consult documentation.')
-   
+
+
+        system = platform.system()
+
+        if system == "Windows":
+            ext_name = ".dll"
+        elif system == "Linux":
+            ext_name = ".so"
+        else:
+            raise OSError(f"Unsupported OS: {system}")
+
         self.fw2d_path = os.path.join(os.path.dirname(__file__), '..', 
-                                      'fw2d', mode_path+solver_path+'.so')
+                                      'fw2d', mode_path+solver_path+ext_name)
         
     def __set_outputdata(self, solver):
         """
