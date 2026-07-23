@@ -2,10 +2,22 @@
 from typing import Tuple
 from dataclasses import dataclass, field
 from utils import db_to_lin, wave_number, wavelength, complex_awgn, thermal_noise_rms_power, thermal_noise_rms_voltage, field_to_open_circuit_voltage
-from environment import Environment
+from hardware.environment import Environment
 import numpy as np
 from scipy import constants as const
 from Reflectometry.antenna_util.pyramidal_horn_farfield_E_U import compute_directivity
+
+HORN_PRESETS = {
+    'default': dict(
+        a1=40e-3,     # H-plane aperture width [m]
+        b1=40e-3,     # E-plane aperture height [m]
+        rho1=50e-3,   # E-plane slant length [m]
+        rho2=50e-3,   # H-plane slant length [m]
+        x=-0.1,       # horn x-position [m] (<=0)
+        E1=3,
+    ),
+    # add more named presets here, e.g. 'wide', 'narrow', etc.
+}
 
 @dataclass
 class Antenna:

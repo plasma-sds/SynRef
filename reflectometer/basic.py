@@ -21,6 +21,7 @@ import scipy.constants as constant
 import matplotlib.pyplot as plt
 from scipy.interpolate import RectBivariateSpline
 from hardware.utils.antenna.pyramidal_farfield_to_fw2d import pyramidal_farfield_to_fw2d
+from hardware.components.antenna import HORN_PRESETS
 from reflectometer.conversions import antenna_pos_to_unit
 
 NXPML = 8
@@ -84,8 +85,7 @@ class Basic():
                 density='default', b_field='default', x='default', y='default',
                 antenna_pos='default', beam_waist='default', angle=0,
                 reflection_distance='default', wavesource='default',
-                horn_a1=40e-3, horn_b1=40-3, horn_rho1=50-3, horn_rho2=50-3,
-                horn_x=-0.1, E1=3):
+                horn='default'):
         """
         Initialize the Basic FW2D simulation.
 
@@ -157,13 +157,8 @@ class Basic():
         self.__set_antenna_pos(antenna_pos=antenna_pos)
         self.__set_outputdata(solver=solver)
         self.__set_ezfinal_output()
-             
-        self.horn_a1 = horn_a1
-        self.horn_b1 = horn_b1
-        self.horn_rho1 = horn_rho1
-        self.horn_rho2 = horn_rho2
-        self.horn_x = horn_x
-        self.E1     = E1
+
+        self.horn_params = __set_horn_params(horn)
 
         self.__set_ampl_inc_phase_inc(wavesource=wavesource)
     
@@ -504,6 +499,25 @@ class Basic():
         self.data.ampl_ant  = self._bufs['ampl_ant']
         self.data.fase_ant  = self._bufs['fase_ant']
 
+    def __set_horn_params(self, horn):
+        """
+        Resolve horn geometry parameters.
+
+        Parameters
+        ----------
+        horn : str or dict
+            Either a key into HORN_PRESETS (selector), or a full dict of
+            horn parameters to override/extend the 'default' preset.
+        """
+        if isinstance(horn, dict):
+            params = dict(HORN_PRESETS['default'])
+            params.update(horn)
+            return params
+        try:
+            return dict(HORN_PRESETS[horn])
+        except KeyError:
+            raise ValueError(f"Unknown horn preset '{horn}'. "
+                            f"Available presets: {list(HORN_PRESETS)}")
 
     def __set_ampl_inc_phase_inc(self, wavesource):
         if wavesource == 'default':
@@ -598,6 +612,7 @@ class Basic():
             self.horn_x     : horn x-position in [m] (<=0)
             self.horn_y     : horn y-position in [m]
         """
+        hp    = self.horn_params
         yante = self.__set_antenna_pos(self.antenna_pos)
 
         ampl_inc_phys, phase_inc_phys = pyramidal_farfield_to_fw2d(
