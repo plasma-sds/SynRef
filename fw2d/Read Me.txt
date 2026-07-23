@@ -4,3 +4,6 @@ Contents of this folder are gitignored.
 
 Build .so file with or similar:
 gcc -shared -fPIC -O2 -o fw2d/maxwell_2d_omode_antenna.so fw2d/maxwell_2d_omode_antenna.c -lm
+
+Build .dll file from Linux:
+x86_64-w64-mingw32-gcc -shared -o fw2d/maxwell_2d_omode_antenna.dll fw2d/maxwell_2d_omode_antenna.c -Wl,--out-implib,mylib.lib
