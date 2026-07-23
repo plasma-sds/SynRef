@@ -83,7 +83,7 @@ class Basic():
     def __init__(self, wavemode='O', solver='basic', frequency=3e10,
                 density='default', b_field='default', x='default', y='default',
                 antenna_pos='default', beam_waist='default', angle=0,
-                reflection_distance='default', wavesource='gaussian',
+                reflection_distance='default', wavesource='default',
                 horn_a1=40e-3, horn_b1=40-3, horn_rho1=50-3, horn_rho2=50-3,
                 horn_x=-0.1, E1=3):
         """
@@ -121,10 +121,10 @@ class Basic():
                 time window. Pass 'default' to auto-estimate it, or a float
                 to set it explicitly.
             wavesource (str): Source field model used to compute ampl_inc and
-                phase_inc. One of 'gaussian' (analytic Gaussian beam with
+                phase_inc. One of 'default' (analytic Gaussian beam with
                 linear phase ramp) or 'pyramidal_horn' (far-field pattern of
                 a pyramidal horn antenna, via Fresnel-integral computation).
-                Default 'gaussian'.
+                Default 'default'.
             horn_a1 (float): Pyramidal horn H-plane aperture width, in
                 millimeters. Only used when wavesource='pyramidal_horn'.
                 Default 40.
@@ -506,13 +506,13 @@ class Basic():
 
 
     def __set_ampl_inc_phase_inc(self, wavesource):
-        if wavesource == 'gaussian':
+        if wavesource == 'default':
             self.__set_gaussian_wave()
         elif wavesource == 'pyramidal_horn':
             self.__set_pyramidal_horn_wave()
         elif isinstance(wavesource, str):
             raise ValueError(
-                "Unknown wavesource. Choose 'gaussian' or 'pyramidal_horn'.")
+                "Unknown wavesource. Choose 'default' or 'pyramidal_horn'.")
         else:
             raise TypeError(
                 f"Expected str, got {type(wavesource).__name__}.")
