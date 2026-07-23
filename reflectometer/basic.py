@@ -165,8 +165,6 @@ class Basic():
         self.E1     = E1
 
         self.__set_ampl_inc_phase_inc(wavesource=wavesource)
-
-        self.__set_ez_t_output(n=t)
     
         self._all_buffers = [
         self.data.ne,
