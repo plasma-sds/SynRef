@@ -3,7 +3,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 #from environment import Environment
 from hardware.components import Antenna, Waveguide, Receiver
-from measurement import ReflectometrySystem
+from hardware.measurement import ReflectometrySystem
 from scipy.fft import fft, fftfreq
 from scipy import signal as sgn
 #from signal_own import sinusoidal_signal

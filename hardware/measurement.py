@@ -3,7 +3,7 @@ import numpy as np
 from typing import List, Dict
 from signal_own import ideal_reflectometry_trace, sinusoidal_signal
 from scipy import signal as sgn
-from environment import Environment
+from hardware.environment import Environment
 from hardware.components import Antenna, Waveguide, Receiver
 from hardware.utils.utils import thermal_noise_rms_power
 from hardware.utils.antenna.antenna_direction_angles import antenna_look_angles
