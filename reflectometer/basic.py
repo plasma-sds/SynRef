@@ -20,7 +20,7 @@ import scipy.constants as constant
 import matplotlib.pyplot as plt
 from scipy.interpolate import RectBivariateSpline
 from hardware.utils.antenna.pyramidal_farfield_to_fw2d import pyramidal_farfield_to_fw2d
-from physics.functions import antenna_pos_to_index
+from reflectometer.functions import antenna_pos_to_index
 
 NXPML = 8
 TFSF = NXPML + 10  # 18
@@ -156,7 +156,7 @@ class Basic():
         self.__set_antenna_pos(antenna_pos=antenna_pos)
         self.__set_outputdata(solver=solver)
         self.__set_ezfinal_output()
-        
+             
         self.horn_a1 = horn_a1
         self.horn_b1 = horn_b1
         self.horn_rho1 = horn_rho1
@@ -165,6 +165,8 @@ class Basic():
         self.E1     = E1
 
         self.__set_ampl_inc_phase_inc(wavesource=wavesource)
+
+        self.__set_ez_t_output(n=t)
     
         self._all_buffers = [
         self.data.ne,
@@ -780,34 +782,19 @@ class Basic():
             ez_final[j] = row_data  # Assign the row to the pointer array
             self._ez_final_arrays.append(row_data)  # Store reference to prevent GC
         self.data.ez_final = ez_final
-    
+
+  
     def run(self):
         """
-        Execute the fw2d C solver.
+        Execute the Maxwell 2D simulation by calling the C function.
         
-        Calls maxwell_2d_omode() in the compiled .so library,
-        passing the fully populated InputData struct.
-        The result is written back into self.data.ez_final.
+        This method runs the FDTD simulation and populates the ez_final field
+        with the computed electric field values.
         
-        Raises:
-            RuntimeError: If the C solver returns a non-zero exit code.
+        Returns:
+            int: Return code from the C function (0 on success)
         """
-        print(f"nx={self.data.nx}, ny={self.data.ny}, nt={self.data.nt}")
-        print(f"dx={self.data.dx}, f0={self.data.f0}")
-        print(f"ne ptr: {self.data.ne}")
-        print(f"b0 ptr: {self.data.b0}")
-        print(f"ampl_inc ptr: {self.data.ampl_inc}")
-        print(f"phase_inc ptr: {self.data.phase_inc}")
-        #print(f"ez_final ptr: {self.data.ez_final}")
-        print(f"ampl_ant ptr: {self.data.ampl_ant}")
-        print(f"fase_ant ptr: {self.data.fase_ant}")
-        print("ampl_inc check:")
-        for j in range(80, min(90, self.data.ny)):
-            print(f"  j={j}: ampl={self._bufs['ampl_inc'][j][0]:.6f}  phase={self._bufs['phase_inc'][j][0]:.6f}")
-
-        print("Calling C solver...")
-        result = self.fw2d.maxwell_2d_omode(ctypes.byref(self.data))
-        print(f"C solver returned: {result}")
+        return self.fw2d.maxwell_2d_omode(ctypes.byref(self.data))
     
     def plot_results(self, title=''):
         """

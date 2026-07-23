@@ -538,14 +538,14 @@ def get_full_sweep(reflectometer, density, x, y, frequencies, frames,
         print(f"Full sweep failed: {e}")
     return amplitudes, phases
 
-def antenna_pos_to_index(antenna_pos, y0, ny, dx):
+def antenna_pos_to_unit(antenna_pos, y0, ny, dx):
     """
     Convert a physical antenna Y-position (in meters) to a grid row index,
     using the same convention as the Gaussian wave source.
     """
     return int(ny - (antenna_pos - y0) // dx)
 
-def meter_to_ind(distance_m, dx):
+def meter_to_unit(distance_m, dx):
     """
     Convert a physical distance (in meters) to a grid row index,
     """
