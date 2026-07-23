@@ -20,7 +20,7 @@ import scipy.constants as constant
 import matplotlib.pyplot as plt
 from scipy.interpolate import RectBivariateSpline
 from hardware.utils.antenna.pyramidal_farfield_to_fw2d import pyramidal_farfield_to_fw2d
-from reflectometer.functions import antenna_pos_to_index
+from reflectometer.conversions import antenna_pos_to_unit
 
 NXPML = 8
 TFSF = NXPML + 10  # 18
@@ -421,7 +421,7 @@ class Basic():
             self.antenna_pos = 0.005 #in meters
         else:
             self.antenna_pos = antenna_pos
-        yante = antenna_pos_to_index(self.antenna_pos, self.y[0], self.ny, self.dx)
+        yante = antenna_pos_to_unit(self.antenna_pos, self.y[0], self.ny, self.dx)
         return yante
         
     def __set_solver_and_datastruct(self, wavemode, solver):

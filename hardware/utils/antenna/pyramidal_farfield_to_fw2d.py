@@ -1,8 +1,8 @@
 import numpy as np
 from scipy.special import fresnel as _scipy_fresnel
 from hardware.utils.antenna.pyramidal_horn_farfield_E_U import pyramidal_horn_E
-from physics.functions import antenna_pos_to_index
-from physics.functions import meter_to_ind
+from reflectometer.conversions import antenna_pos_to_unit
+from reflectometer.conversions import meter_to_unit
 
 # -----------------------------------------------------------------------
 # BRIDGE: horn far-field → fw2d ampl_inc / phase_inc
@@ -71,12 +71,12 @@ def pyramidal_farfield_to_fw2d(
     k   = 2.0 * np.pi * freq / 3e8
     j_arr = np.arange(ny + 1, dtype=float)
 
-    j_ref_ind = meter_to_ind(antenna_pos, dx) - meter_to_ind(x_horn, dx) * np.tan(angle)
+    j_ref_ind = meter_to_unit(antenna_pos, dx) - meter_to_unit(x_horn, dx) * np.tan(angle)
     j_ref_m   = antenna_pos - x_horn * np.tan(angle)
 
     # Vector from horn to each grid point j
-    vec_x_ind = 0.0 - meter_to_ind(x_horn, dx)                    # same for all j (scalar)
-    vec_y_ind = j_arr - meter_to_ind(antenna_pos, dx)             # varies with j
+    vec_x_ind = 0.0 - meter_to_unit(x_horn, dx)                    # same for all j (scalar)
+    vec_y_ind = j_arr - meter_to_unit(antenna_pos, dx)             # varies with j
 
     vec_x_m = 0.0 - x_horn
     vec_y_m = j_arr * dx - antenna_pos
@@ -89,7 +89,7 @@ def pyramidal_farfield_to_fw2d(
     # Reference point: grid point at j ref (beam centre)
     # -------------------------------------------------------------------
     vec_x_ref_ind = vec_x_ind
-    vec_y_ref_ind = j_ref_ind - meter_to_ind(antenna_pos, dx)
+    vec_y_ref_ind = j_ref_ind - meter_to_unit(antenna_pos, dx)
 
     vec_x_ref_m = vec_x_m
     vec_y_ref_m = j_ref_m - antenna_pos
