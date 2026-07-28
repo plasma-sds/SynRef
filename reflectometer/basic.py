@@ -21,7 +21,7 @@ import scipy.constants as constant
 import matplotlib.pyplot as plt
 from scipy.interpolate import RectBivariateSpline
 from hardware.utils.antenna.pyramidal_farfield_to_fw2d import pyramidal_farfield_to_fw2d
-from hardware.components.antenna import HORN_PRESETS
+from hardware.components.antenna import Antenna, HORN_PRESETS
 from reflectometer.conversions import antenna_pos_to_unit
 
 NXPML = 8
@@ -142,7 +142,10 @@ class Basic():
         self.__set_outputdata(solver=solver)
         self.__set_ezfinal_output()
 
-        self.horn_params = self.__set_horn_params(horn=horn)
+        
+        self.antenna = Antenna.from_horn_preset(horn)
+        self.horn_x  = HORN_PRESETS[horn]['x']
+        self.E1  = HORN_PRESETS[horn]['E1']
 
         self.__set_ampl_inc_phase_inc(wavesource=wavesource)
     
@@ -596,7 +599,6 @@ class Basic():
             self.horn_x     : horn x-position in [m] (<=0)
             self.horn_y     : horn y-position in [m]
         """
-        hp    = self.horn_params
         yante = self.__set_antenna_pos(self.antenna_pos)
 
         ampl_inc_phys, phase_inc_phys = pyramidal_farfield_to_fw2d(
@@ -604,16 +606,16 @@ class Basic():
             ny       = self.ny,
             dy       = self.dx,           # same spacing in both directions
             dx       = self.dx,
-            x_horn   = hp['x'],
+            x_horn   = self.horn_x,
             antenna_pos   = self.antenna_pos,
             yante    = yante,
             angle    = numpy.deg2rad(self.angle),
-            a1       = hp['a1'],
-            b1       = hp['b1'],
-            rho1     = hp['rho1'],
-            rho2     = hp['rho2'],
+            a1       = self.antenna.a1,
+            b1       = self.antenna.b1,
+            rho1     = self.antenna.rho1,
+            rho2     = self.antenna.rho2,
             freq     = self.frequency,
-            E1       = hp['E1'],
+            E1       = self.E1,
         )
         
         ny_phys = self.data.ny
@@ -811,7 +813,6 @@ class Basic():
         Args:
             title (str): Optional title for the plot
         """
-        hp = self.horn_params
         x, y, time = self.get_axis()
         density = self.get_fields()
         ez = self.get_fields(kind='electric')
@@ -859,13 +860,13 @@ class Basic():
             yante = self.__set_antenna_pos(self.antenna_pos)
 
             # Horn's true physical position (horn_x is negative, i.e. behind the domain)
-            x0_cm = from_unit_to_centi(hp['x'])
+            x0_cm = from_unit_to_centi(self.horn_x)
             y0_cm = from_unit_to_centi(self.antenna_pos)
 
             # Extend the boresight ray from the horn position across the domain's X-range
-            x_line = numpy.array([hp['x'], x[-1]])
+            x_line = numpy.array([self.horn_x, x[-1]])
             # angle is boresight elevation; y = y0 + (x - x0) * tan(angle), now anchored at horn_x
-            y_line = self.antenna_pos + (x_line - hp['x']) * numpy.tan(numpy.deg2rad(self.angle))
+            y_line = self.antenna_pos + (x_line - self.horn_x) * numpy.tan(numpy.deg2rad(self.angle))
 
             x_line_cm = from_unit_to_centi(x_line)
             y_line_cm = from_unit_to_centi(y_line)

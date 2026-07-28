@@ -62,6 +62,23 @@ class Antenna:
     def directivity_max_lin(self):
         """Directivity D = G / efficiency."""
         return self.gain_lin / self.radiation_efficiency
+
+    @classmethod
+    def from_horn_preset(cls, name: str, **overrides) -> "Antenna":
+        """Build an Antenna using a named horn geometry preset."""
+        try:
+            preset = HORN_PRESETS[name]
+        except KeyError:
+            raise ValueError(f"Unknown horn preset '{name}'. Available: {list(HORN_PRESETS)}")
+
+        params = dict(
+            a1=preset['a1'],
+            b1=preset['b1'],
+            rho1=preset['rho1'],
+            rho2=preset['rho2'],
+        )
+        params.update(overrides)
+        return cls(name=name, **params)
     
     def phase_err_E_plane(self, rfl_freq_hz: float) -> np.ndarray:
         """Example phase error function across E-plane (x-axis). Dased on Balanis F13.23. data fitted to polynomial."""
