@@ -1,6 +1,6 @@
 """Low Noise Amplifier model."""
 from dataclasses import dataclass
-from utils import db_to_lin, nf_db_to_te, thermal_noise_rms_power, thermal_noise_rms_voltage, complex_awgn, T0
+from hardware.utils.utils import db_to_lin, nf_db_to_te, thermal_noise_rms_power, thermal_noise_rms_voltage, complex_awgn, T0
 import numpy as np
 
 @dataclass

@@ -1,6 +1,6 @@
 """Passive waveguide/cable model."""
 from dataclasses import dataclass
-from utils import db_to_lin, db_m_to_nepers_m, thermal_noise_rms_power, thermal_noise_rms_voltage, complex_awgn, T0
+from hardware.utils.utils import db_to_lin, db_m_to_nepers_m, thermal_noise_rms_power, thermal_noise_rms_voltage, complex_awgn, T0
 import numpy as np
 
 @dataclass

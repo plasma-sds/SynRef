@@ -125,24 +125,8 @@ class Basic():
                 linear phase ramp) or 'pyramidal_horn' (far-field pattern of
                 a pyramidal horn antenna, via Fresnel-integral computation).
                 Default 'default'.
-            horn_a1 (float): Pyramidal horn H-plane aperture width, in
-                millimeters. Only used when wavesource='pyramidal_horn'.
-                Default 40.
-            horn_b1 (float): Pyramidal horn E-plane aperture height, in
-                millimeters. Only used when wavesource='pyramidal_horn'.
-                Default 40.
-            horn_rho1 (float): Pyramidal horn E-plane slant length (apex to
-                aperture), in millimeters. Only used when
-                wavesource='pyramidal_horn'. Default 50.
-            horn_rho2 (float): Pyramidal horn H-plane slant length (apex to
-                aperture), in millimeters. Only used when
-                wavesource='pyramidal_horn'. Default 50.
-            horn_x (float): Horn aperture X-position relative to the fw2d
-                injection boundary, in the same length units as the grid.
-                Only used when wavesource='pyramidal_horn'. Default -10.
-            horn_y (float): Horn aperture Y-position (boresight center row),
-                in the same length units as the grid. Only used when
-                wavesource='pyramidal_horn'. Default 40.
+            horn (str): Horn parameters called from a dictionary. 'Default'
+                calls a generic pyramidal antenna, possible antennas: 'W7X' etc.
         """
         
         self._bufs = {}
@@ -158,7 +142,7 @@ class Basic():
         self.__set_outputdata(solver=solver)
         self.__set_ezfinal_output()
 
-        self.horn_params = __set_horn_params(horn)
+        self.horn_params = self.__set_horn_params(horn=horn)
 
         self.__set_ampl_inc_phase_inc(wavesource=wavesource)
     
@@ -620,16 +604,16 @@ class Basic():
             ny       = self.ny,
             dy       = self.dx,           # same spacing in both directions
             dx       = self.dx,
-            x_horn   = self.horn_x,
+            x_horn   = hp['x'],
             antenna_pos   = self.antenna_pos,
             yante    = yante,
             angle    = numpy.deg2rad(self.angle),
-            a1       = self.horn_a1,
-            b1       = self.horn_b1,
-            rho1     = self.horn_rho1,
-            rho2     = self.horn_rho2,
+            a1       = hp['a1'],
+            b1       = hp['b1'],
+            rho1     = hp['rho1'],
+            rho2     = hp['rho2'],
             freq     = self.frequency,
-            E1       = self.E1
+            E1       = hp['E1'],
         )
         
         ny_phys = self.data.ny
@@ -827,6 +811,7 @@ class Basic():
         Args:
             title (str): Optional title for the plot
         """
+        hp = self.horn_params
         x, y, time = self.get_axis()
         density = self.get_fields()
         ez = self.get_fields(kind='electric')
@@ -874,13 +859,13 @@ class Basic():
             yante = self.__set_antenna_pos(self.antenna_pos)
 
             # Horn's true physical position (horn_x is negative, i.e. behind the domain)
-            x0_cm = from_unit_to_centi(self.horn_x)
+            x0_cm = from_unit_to_centi(hp['x'])
             y0_cm = from_unit_to_centi(self.antenna_pos)
 
             # Extend the boresight ray from the horn position across the domain's X-range
-            x_line = numpy.array([self.horn_x, x[-1]])
+            x_line = numpy.array([hp['x'], x[-1]])
             # angle is boresight elevation; y = y0 + (x - x0) * tan(angle), now anchored at horn_x
-            y_line = self.antenna_pos + (x_line - self.horn_x) * numpy.tan(numpy.deg2rad(self.angle))
+            y_line = self.antenna_pos + (x_line - hp['x']) * numpy.tan(numpy.deg2rad(self.angle))
 
             x_line_cm = from_unit_to_centi(x_line)
             y_line_cm = from_unit_to_centi(y_line)
