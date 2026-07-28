@@ -486,26 +486,6 @@ class Basic():
         self.data.ampl_ant  = self._bufs['ampl_ant']
         self.data.fase_ant  = self._bufs['fase_ant']
 
-    def __set_horn_params(self, horn):
-        """
-        Resolve horn geometry parameters.
-
-        Parameters
-        ----------
-        horn : str or dict
-            Either a key into HORN_PRESETS (selector), or a full dict of
-            horn parameters to override/extend the 'default' preset.
-        """
-        if isinstance(horn, dict):
-            params = dict(HORN_PRESETS['default'])
-            params.update(horn)
-            return params
-        try:
-            return dict(HORN_PRESETS[horn])
-        except KeyError:
-            raise ValueError(f"Unknown horn preset '{horn}'. "
-                            f"Available presets: {list(HORN_PRESETS)}")
-
     def __set_ampl_inc_phase_inc(self, wavesource):
         if wavesource == 'default':
             self.__set_gaussian_wave()
