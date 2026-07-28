@@ -22,10 +22,12 @@ import matplotlib.pyplot as plt
 from scipy.interpolate import RectBivariateSpline
 from hardware.utils.antenna.pyramidal_farfield_to_fw2d import pyramidal_farfield_to_fw2d
 from hardware.components.antenna import Antenna, ANTENNA_PRESETS
+from hardware.environment import Environment
+from hardware.utils.utils import wavelength
 from reflectometer.conversions import antenna_pos_to_unit, _build_extended_incident_arrays
 
 FW2D_NXPML = 8
-FW2D_TFSF = FW2D_NXPML + 10  # 18
+FW2D_TFSF = FW2D_NXPML + 10
 
 class InputData(ctypes.Structure):                                  #Input data structure for Basic FW2D
     """
@@ -146,6 +148,11 @@ class Basic():
         self.antenna = Antenna.from_antenna_preset(antenna)
         self.ant_x  = ANTENNA_PRESETS[antenna]['x']
         self.ant_Efield_V_per_m  = ANTENNA_PRESETS[antenna]['Efield_V_per_m']
+
+        wl = wavelength(self.frequency)
+
+        self.R1, self.R2 = Antenna.field_region_boundaries(antenna, wl)
+        print(f"R1={self.R1}, R2={self.R2}")
 
         self.__set_ampl_inc_phase_inc(antenna=antenna)
 
@@ -497,7 +504,7 @@ class Basic():
             self.__set_pyramidal_horn_wave()
         elif isinstance(antenna, str):
             raise ValueError(
-                "Unknown wavesource. Choose 'default' or 'pyramidal_horn'.")
+                "Unknown wavesource. Choose 'default' or 'W7X'")
         else:
             raise TypeError(
                 f"Expected str, got {type(antenna).__name__}.")
@@ -554,22 +561,33 @@ class Basic():
         """
         yante = self.__set_antenna_pos(self.antenna_pos)
 
-        ampl_phys, phase_phys = pyramidal_farfield_to_fw2d(
-            y        = self.y,
-            ny       = self.ny,
-            dy       = self.dx,           # same spacing in both directions
-            dx       = self.dx,
-            x_horn   = self.ant_x,
-            antenna_pos   = self.antenna_pos,
-            yante    = yante,
-            angle    = numpy.deg2rad(self.angle),
-            a1       = self.antenna.a1,
-            b1       = self.antenna.b1,
-            rho1     = self.antenna.rho1,
-            rho2     = self.antenna.rho2,
-            freq     = self.frequency,
-            E1       = self.ant_Efield_V_per_m,
-        )
+
+        if Environment.PLASMA_ANT_DIST >= self.R2:
+            if Environment.PLASMA_ANT_DIST > abs(self.ant_x):
+                raise ValueError(f"Antenna - plasma distance calculation bug, distance is hardcoded should be calculated from ant_x and density field")
+            print("Antenna is in far-field region")
+            ampl_phys, phase_phys = pyramidal_farfield_to_fw2d(
+                y        = self.y,
+                ny       = self.ny,
+                dy       = self.dx,           # same spacing in both directions
+                dx       = self.dx,
+                x_horn   = self.ant_x,
+                antenna_pos   = self.antenna_pos,
+                yante    = yante,
+                angle    = numpy.deg2rad(self.angle),
+                a1       = self.antenna.a1,
+                b1       = self.antenna.b1,
+                rho1     = self.antenna.rho1,
+                rho2     = self.antenna.rho2,
+                freq     = self.frequency,
+                E1       = self.ant_Efield_V_per_m,
+            )
+
+        elif self.R1 <= Environment.PLASMA_ANT_DIST < self.R2:
+            raise ValueError(f"Antenna - plasma distance is in Fresnel region, antenna field is not implemented yet")
+        
+        elif Environment.PLASMA_ANT_DIST < self.R1:
+            raise ValueError(f"Antenna - plasma distance is in Reactive near-field region, antenna field is not implemented yet")
         
         _, _ = _build_extended_incident_arrays(self=self, ampl_phys=ampl_phys, phase_phys=phase_phys, TFSF=FW2D_TFSF)
 

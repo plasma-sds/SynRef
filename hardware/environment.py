@@ -11,12 +11,14 @@ class Environment:
     - polarization loss factor,
     - resistance in ohm,
     - source position in lab frame (x, y, z) in meters
+    - PLASMA_ANT_DIST in meters.
     output: noise voltage, noise power, E-field distribution across aperture"""
     name: str
     plasma_physical_temp_keV: float = 4  # Physical temperature of environment
     PLF: float = 0.5 # Polarization loss factor (0 to 1)
     resistance_ohm: float = 2.0
     source_pos: np.ndarray = field(default_factory=lambda: np.array([0.0, 0.0, 0.0])) 
+    PLASMA_ANT_DIST: float = 0.3336 
         
     @property
     def noise_temp_k(self):

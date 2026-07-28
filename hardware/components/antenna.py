@@ -4,8 +4,10 @@ from dataclasses import dataclass, field
 from hardware.utils.utils import db_to_lin, wave_number, wavelength, complex_awgn, thermal_noise_rms_power, thermal_noise_rms_voltage, field_to_open_circuit_voltage
 from hardware.environment import Environment
 import numpy as np
+import warnings
 from scipy import constants as const
 from hardware.utils.antenna.pyramidal_horn_farfield_E_U import compute_directivity
+
 
 ANTENNA_PRESETS = {
     'default': dict(
@@ -21,7 +23,7 @@ ANTENNA_PRESETS = {
         b1=30.588e-3, # E-plane aperture height [m]
         rho1=30e-3, # E-plane slant length [m]
         rho2=60e-3,  # H-plane slant length [m]
-        x=-0.1,       # horn x-position [m] (<=0)
+        x=-0.4,       # horn x-position [m] (<=0)
         Efield_V_per_m=1,
     )
     # add more named presets here, e.g. 'wide', 'narrow', etc.
@@ -79,6 +81,71 @@ class Antenna:
         )
         params.update(overrides)
         return cls(name=name, **params)
+
+    @classmethod
+    def field_region_boundaries(cls, antenna='default', wavelength=wavelength(operating_frequency_hz)):
+        """
+        Compute the two characteristic radii separating the field regions.
+
+        Per Balanis Fig. 2.7, the space around the antenna is divided into
+        three regions:
+
+        - Reactive near-field:              0     <= R < R1
+        - Radiating near-field (Fresnel):   R1    <= R < R2
+        - Far-field (Fraunhofer):           R2    <= R
+
+        Parameters
+        ----------
+        D : float or array_like, optional
+            Largest dimension of the antenna, in meters. Defaults to
+            ``self.D``.
+        wavelength : float or array_like, optional
+            Free-space wavelength, in meters. Defaults to
+            ``self.wavelength``.
+
+        Returns
+        -------
+        R1 : float or ndarray
+            Outer boundary of the reactive near-field region / inner
+            boundary of the radiating near-field (Fresnel) region.
+
+            .. math:: R_1 = 0.62 \\sqrt{D^3 / \\lambda}
+
+        R2 : float or ndarray
+            Minimum distance to reach the far-field (Fraunhofer) region.
+
+            .. math:: R_2 = 2 D^2 / \\lambda
+
+        Notes
+        -----
+        Both formulas require ``D`` to be large compared to ``wavelength``
+        (D >> lambda). ``R1`` and ``R2`` are only meaningful when
+        ``D > wavelength``; see :meth:`min_farfield_distance` for a
+        far-field distance that stays valid for electrically small
+        antennas as well.
+
+        References
+        ----------
+        Balanis, "Antenna Theory: Analysis and Design," 4th ed., Fig. 2.7.
+        """
+        if antenna == 'default':
+            warnings.warn("Default antenna results in Gaussian amplitude and wave distribution. No antenna size applicable")
+            return 0.0, 0.0
+
+        elif antenna in ('W7X', 'future development'):
+            D = np.sqrt(ANTENNA_PRESETS[antenna]['a1']**2 + ANTENNA_PRESETS[antenna]['b1']**2)
+
+            R1 = 0.62 * np.sqrt(D**3 / wavelength)
+            R2 = 2.0 * D**2 / wavelength
+            return R1, R2
+        elif isinstance(antenna, str):
+            raise ValueError(
+                "Unknown wavesource. Choose 'default' or 'W7X'")
+        else:
+            raise TypeError(
+                f"Expected str, got {type(antenna).__name__}.")
+
+        
     
     def phase_err_E_plane(self, rfl_freq_hz: float) -> np.ndarray:
         """Example phase error function across E-plane (x-axis). Dased on Balanis F13.23. data fitted to polynomial."""
