@@ -24,8 +24,8 @@ from hardware.utils.antenna.pyramidal_farfield_to_fw2d import pyramidal_farfield
 from hardware.components.antenna import Antenna, ANTENNA_PRESETS
 from reflectometer.conversions import antenna_pos_to_unit, _build_extended_incident_arrays
 
-NXPML = 8
-TFSF = NXPML + 10  # 18
+FW2D_NXPML = 8
+FW2D_TFSF = FW2D_NXPML + 10  # 18
 
 class InputData(ctypes.Structure):                                  #Input data structure for Basic FW2D
     """
@@ -120,8 +120,8 @@ class Basic():
                 to the reflecting plasma layer, used to size the simulation
                 time window. Pass 'default' to auto-estimate it, or a float
                 to set it explicitly.
-            antenna (str): According to selection antenna parametest are called
-                and antennas field model is used to compute ampl_inc and
+            antenna (str): According to selected antenna type antenna parameters are called
+                and the antennas field model is used to compute ampl_inc and
                 phase_inc. One of 'default' (analytic Gaussian beam with
                 linear phase ramp) or 'W7X' (far-field pattern of
                 a pyramidal horn antenna, via Fresnel-integral computation).
@@ -148,30 +148,9 @@ class Basic():
         self.ant_Efield_V_per_m  = ANTENNA_PRESETS[antenna]['Efield_V_per_m']
 
         self.__set_ampl_inc_phase_inc(antenna=antenna)
-    
-        self._all_buffers = [
-        self.data.ne,
-        self.data.b0,
-        self.data.ampl_inc,
-        self.data.phase_inc,
-        #self.data.ez_final,
-        self.data.ampl_ant,
-        self.data.fase_ant,
-        ]
-        print("Buffer ids:", [id(b) for b in self._all_buffers])
-
-        print("Buffer addresses:")
-        for k, v in self._bufs.items():
-            try:
-                addr = ctypes.addressof(v[0])
-            except TypeError:
-                addr = ctypes.addressof(v)
-            print(f"  {k:12s}: id={id(v)}  ctypes_addr={addr}")
-
-        print("Python struct size:", ctypes.sizeof(InputData)) 
 
         ny_phys = self.data.ny          # physical grid points (e.g. 132)
-        ny_ext  = ny_phys - 1 + 2*TFSF  # extended grid in C
+        ny_ext  = ny_phys - 1 + 2*FW2D_TFSF  # extended grid in C
 
     def __set_frequency(self, frequency):
         """
@@ -487,9 +466,34 @@ class Basic():
         self.data.fase_ant  = self._bufs['fase_ant']
 
     def __set_ampl_inc_phase_inc(self, antenna):
+        """Set the incident amplitude and phase profile for the chosen antenna.
+
+        Selects and configures the wave source model used to compute the
+        incident amplitude and phase, dispatching to a Gaussian beam or a
+        pyramidal horn model depending on the requested antenna type.
+
+        Parameters
+        ----------
+        antenna : str
+            Identifier of the antenna/wave source to use. Supported values
+            are ``'default'`` (Gaussian wave) and ``'W7X'`` or
+            ``'future development'`` (pyramidal horn wave).
+
+        Raises
+        ------
+        ValueError
+            If `antenna` is a string but not one of the supported values.
+        TypeError
+            If `antenna` is not a string.
+
+        Notes
+        -----
+        This sets internal state via `__set_gaussian_wave` or
+        `__set_pyramidal_horn_wave` and does not return a value.
+        """
         if antenna == 'default':
             self.__set_gaussian_wave()
-        elif antenna == 'W7X' or 'future development':
+        elif antenna in ('W7X','future development'):
             self.__set_pyramidal_horn_wave()
         elif isinstance(antenna, str):
             raise ValueError(
@@ -533,7 +537,7 @@ class Basic():
         fase       = -j_phys * dfase
         phase_phys = (fase + numpy.pi) % (2.0 * numpy.pi) - numpy.pi
 
-        _, _ = _build_extended_incident_arrays(self=self, ampl_phys=ampl_phys, phase_phys=phase_phys, TFSF=TFSF)
+        _, _ = _build_extended_incident_arrays(self=self, ampl_phys=ampl_phys, phase_phys=phase_phys, TFSF=FW2D_TFSF)
 
 
     def __set_pyramidal_horn_wave(self):
@@ -567,7 +571,7 @@ class Basic():
             E1       = self.ant_Efield_V_per_m,
         )
         
-        _, _ = _build_extended_incident_arrays(self=self, ampl_phys=ampl_phys, phase_phys=phase_phys, TFSF=TFSF)
+        _, _ = _build_extended_incident_arrays(self=self, ampl_phys=ampl_phys, phase_phys=phase_phys, TFSF=FW2D_TFSF)
 
     def update_frequency(self, frequency):
         """
