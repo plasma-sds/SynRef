@@ -7,13 +7,13 @@ import numpy as np
 from scipy import constants as const
 from hardware.utils.antenna.pyramidal_horn_farfield_E_U import compute_directivity
 
-HORN_PRESETS = {
+ANTENNA_PRESETS = {
     'default': dict(
         a1=40e-3,     # H-plane aperture width [m]
         b1=40e-3,     # E-plane aperture height [m]
         rho1=50e-3,   # E-plane slant length [m]
         rho2=50e-3,   # H-plane slant length [m]
-        x=-0.1,       # horn x-position [m] (<=0)
+        x=-0.1,       # not relevant for basic 
         E1=3,
     ),
     'W7X': dict(
@@ -64,12 +64,12 @@ class Antenna:
         return self.gain_lin / self.radiation_efficiency
 
     @classmethod
-    def from_horn_preset(cls, name: str, **overrides) -> "Antenna":
+    def from_antenna_preset(cls, name: str, **overrides) -> "Antenna":
         """Build an Antenna using a named horn geometry preset."""
         try:
-            preset = HORN_PRESETS[name]
+            preset = ANTENNA_PRESETS[name]
         except KeyError:
-            raise ValueError(f"Unknown horn preset '{name}'. Available: {list(HORN_PRESETS)}")
+            raise ValueError(f"Unknown horn preset '{name}'. Available: {list(ANTENNA_PRESETS)}")
 
         params = dict(
             a1=preset['a1'],

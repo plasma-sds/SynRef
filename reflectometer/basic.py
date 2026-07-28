@@ -21,7 +21,7 @@ import scipy.constants as constant
 import matplotlib.pyplot as plt
 from scipy.interpolate import RectBivariateSpline
 from hardware.utils.antenna.pyramidal_farfield_to_fw2d import pyramidal_farfield_to_fw2d
-from hardware.components.antenna import Antenna, HORN_PRESETS
+from hardware.components.antenna import Antenna, ANTENNA_PRESETS
 from reflectometer.conversions import antenna_pos_to_unit, _build_extended_incident_arrays
 
 NXPML = 8
@@ -84,8 +84,8 @@ class Basic():
     def __init__(self, wavemode='O', solver='basic', frequency=3e10,
                 density='default', b_field='default', x='default', y='default',
                 antenna_pos='default', beam_waist='default', angle=0,
-                reflection_distance='default', wavesource='default',
-                horn='default'):
+                reflection_distance='default', antenna='default',
+                ):
         """
         Initialize the Basic FW2D simulation.
 
@@ -120,13 +120,13 @@ class Basic():
                 to the reflecting plasma layer, used to size the simulation
                 time window. Pass 'default' to auto-estimate it, or a float
                 to set it explicitly.
-            wavesource (str): Source field model used to compute ampl_inc and
+            antenna (str): According to selection antenna parametest are called
+                and antennas field model is used to compute ampl_inc and
                 phase_inc. One of 'default' (analytic Gaussian beam with
-                linear phase ramp) or 'pyramidal_horn' (far-field pattern of
+                linear phase ramp) or 'W7X' (far-field pattern of
                 a pyramidal horn antenna, via Fresnel-integral computation).
                 Default 'default'.
-            horn (str): Horn parameters called from a dictionary. 'Default'
-                calls a generic pyramidal antenna, possible antennas: 'W7X' etc.
+
         """
         
         self._bufs = {}
@@ -143,11 +143,11 @@ class Basic():
         self.__set_ezfinal_output()
 
         
-        self.antenna = Antenna.from_horn_preset(horn)
-        self.horn_x  = HORN_PRESETS[horn]['x']
-        self.E1  = HORN_PRESETS[horn]['E1']
+        self.antenna = Antenna.from_antenna_preset(antenna)
+        self.ant_x  = ANTENNA_PRESETS[antenna]['x']
+        self.E1  = ANTENNA_PRESETS[antenna]['E1']
 
-        self.__set_ampl_inc_phase_inc(wavesource=wavesource)
+        self.__set_ampl_inc_phase_inc(antenna=antenna)
     
         self._all_buffers = [
         self.data.ne,
@@ -486,17 +486,17 @@ class Basic():
         self.data.ampl_ant  = self._bufs['ampl_ant']
         self.data.fase_ant  = self._bufs['fase_ant']
 
-    def __set_ampl_inc_phase_inc(self, wavesource):
-        if wavesource == 'default':
+    def __set_ampl_inc_phase_inc(self, antenna):
+        if antenna == 'default':
             self.__set_gaussian_wave()
-        elif wavesource == 'pyramidal_horn':
+        elif antenna == 'W7X' or 'future development':
             self.__set_pyramidal_horn_wave()
-        elif isinstance(wavesource, str):
+        elif isinstance(antenna, str):
             raise ValueError(
                 "Unknown wavesource. Choose 'default' or 'pyramidal_horn'.")
         else:
             raise TypeError(
-                f"Expected str, got {type(wavesource).__name__}.")
+                f"Expected str, got {type(antenna).__name__}.")
     
     def __set_gaussian_wave(self):
         """
@@ -545,7 +545,7 @@ class Basic():
             self.horn_b1    : E-plane aperture height [m]
             self.horn_rho1  : E-plane slant length [m]
             self.horn_rho2  : H-plane slant length [m]
-            self.horn_x     : horn x-position in [m] (<=0)
+            self.ant_x     : horn x-position in [m] (<=0)
             self.horn_y     : horn y-position in [m]
         """
         yante = self.__set_antenna_pos(self.antenna_pos)
@@ -555,7 +555,7 @@ class Basic():
             ny       = self.ny,
             dy       = self.dx,           # same spacing in both directions
             dx       = self.dx,
-            x_horn   = self.horn_x,
+            x_horn   = self.ant_x,
             antenna_pos   = self.antenna_pos,
             yante    = yante,
             angle    = numpy.deg2rad(self.angle),
@@ -782,14 +782,14 @@ class Basic():
         if ante:
             yante = self.__set_antenna_pos(self.antenna_pos)
 
-            # Horn's true physical position (horn_x is negative, i.e. behind the domain)
-            x0_cm = from_unit_to_centi(self.horn_x)
+            # Horn's true physical position (ant_x is negative, i.e. behind the domain)
+            x0_cm = from_unit_to_centi(self.ant_x)
             y0_cm = from_unit_to_centi(self.antenna_pos)
 
             # Extend the boresight ray from the horn position across the domain's X-range
-            x_line = numpy.array([self.horn_x, x[-1]])
-            # angle is boresight elevation; y = y0 + (x - x0) * tan(angle), now anchored at horn_x
-            y_line = self.antenna_pos + (x_line - self.horn_x) * numpy.tan(numpy.deg2rad(self.angle))
+            x_line = numpy.array([self.ant_x, x[-1]])
+            # angle is boresight elevation; y = y0 + (x - x0) * tan(angle), now anchored at ant_x
+            y_line = self.antenna_pos + (x_line - self.ant_x) * numpy.tan(numpy.deg2rad(self.angle))
 
             x_line_cm = from_unit_to_centi(x_line)
             y_line_cm = from_unit_to_centi(y_line)
