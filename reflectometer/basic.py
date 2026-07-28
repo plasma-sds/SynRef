@@ -16,13 +16,13 @@ import datetime
 import platform
 
 
-from .conversions import from_unit_to_centi
+from reflectometer.conversions import from_unit_to_centi
 import scipy.constants as constant
 import matplotlib.pyplot as plt
 from scipy.interpolate import RectBivariateSpline
 from hardware.utils.antenna.pyramidal_farfield_to_fw2d import pyramidal_farfield_to_fw2d
 from hardware.components.antenna import Antenna, HORN_PRESETS
-from reflectometer.conversions import antenna_pos_to_unit
+from reflectometer.conversions import antenna_pos_to_unit, _build_extended_incident_arrays
 
 NXPML = 8
 TFSF = NXPML + 10  # 18
@@ -533,39 +533,8 @@ class Basic():
         fase       = -j_phys * dfase
         phase_phys = (fase + numpy.pi) % (2.0 * numpy.pi) - numpy.pi
 
-        # Now build EXTENDED grid arrays to match C
-        ny_phys = self.data.ny
-        ny_ext  = ny_phys - 1 + 2*TFSF
+        _, _ = _build_extended_incident_arrays(self=self, ampl_phys=ampl_phys, phase_phys=phase_phys, TFSF=TFSF)
 
-        ampl_2d  = (ctypes.POINTER(ctypes.c_double) * (ny_ext + 1))()
-        phase_2d = (ctypes.POINTER(ctypes.c_double) * (ny_ext + 1))()
-        self._ampl_inc_rows  = []
-        self._phase_inc_rows = []
-
-        for j_ext in range(ny_ext + 1):
-            row_ampl  = (ctypes.c_double * 1)()
-            row_phase = (ctypes.c_double * 1)()
-
-            # map extended index j_ext to physical index j_phys = j_ext - TFSF
-            if TFSF <= j_ext <= TFSF + ny_phys:
-                j_p = j_ext - TFSF
-                row_ampl[0]  = float(ampl_phys[j_p])
-                row_phase[0] = float(phase_phys[j_p])
-            else:
-                # in PML / outside physical region → zero
-                row_ampl[0]  = 0.0
-                row_phase[0] = 0.0
-
-            ampl_2d[j_ext]  = row_ampl
-            phase_2d[j_ext] = row_phase
-            self._ampl_inc_rows.append(row_ampl)
-            self._phase_inc_rows.append(row_phase)
-
-        # keep top-level pointers alive
-        self._bufs['ampl_inc']  = ampl_2d
-        self._bufs['phase_inc'] = phase_2d
-        self.data.ampl_inc  = self._bufs['ampl_inc']
-        self.data.phase_inc = self._bufs['phase_inc']
 
     def __set_pyramidal_horn_wave(self):
         """
@@ -581,7 +550,7 @@ class Basic():
         """
         yante = self.__set_antenna_pos(self.antenna_pos)
 
-        ampl_inc_phys, phase_inc_phys = pyramidal_farfield_to_fw2d(
+        ampl_phys, phase_phys = pyramidal_farfield_to_fw2d(
             y        = self.y,
             ny       = self.ny,
             dy       = self.dx,           # same spacing in both directions
@@ -598,33 +567,7 @@ class Basic():
             E1       = self.E1,
         )
         
-        ny_phys = self.data.ny
-        ny_ext  = ny_phys - 1 + 2*TFSF
-
-        ampl_2d  = (ctypes.POINTER(ctypes.c_double) * (ny_ext + 1))()
-        phase_2d = (ctypes.POINTER(ctypes.c_double) * (ny_ext + 1))()
-        self._ampl_inc_rows  = []
-        self._phase_inc_rows = []
-
-        for j_ext in range(ny_ext + 1):
-            row_ampl  = (ctypes.c_double * 1)()
-            row_phase = (ctypes.c_double * 1)()
-            if TFSF <= j_ext <= TFSF + ny_phys:
-                j_p = j_ext - TFSF
-                row_ampl[0]  = float(ampl_inc_phys[j_p])
-                row_phase[0] = float(phase_inc_phys[j_p])
-            else:
-                row_ampl[0]  = 0.0
-                row_phase[0] = 0.0
-            ampl_2d[j_ext]  = row_ampl
-            phase_2d[j_ext] = row_phase
-            self._ampl_inc_rows.append(row_ampl)
-            self._phase_inc_rows.append(row_phase)
-
-        self._bufs['ampl_inc']  = ampl_2d
-        self._bufs['phase_inc'] = phase_2d
-        self.data.ampl_inc  = self._bufs['ampl_inc']
-        self.data.phase_inc = self._bufs['phase_inc']
+        _, _ = _build_extended_incident_arrays(self=self, ampl_phys=ampl_phys, phase_phys=phase_phys, TFSF=TFSF)
 
     def update_frequency(self, frequency):
         """
