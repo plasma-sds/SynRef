@@ -145,7 +145,7 @@ class Basic():
         
         self.antenna = Antenna.from_antenna_preset(antenna)
         self.ant_x  = ANTENNA_PRESETS[antenna]['x']
-        self.E1  = ANTENNA_PRESETS[antenna]['E1']
+        self.ant_Efield_V_per_m  = ANTENNA_PRESETS[antenna]['Efield_V_per_m']
 
         self.__set_ampl_inc_phase_inc(antenna=antenna)
     
@@ -526,7 +526,7 @@ class Basic():
 
         # Amplitude on PHYSICAL grid (0 .. ny_phys), as before
         aux      = numpy.cos(numpy.deg2rad(self.angle)) * (j_phys - yante) / float(waist)
-        ampl_phys  = numpy.exp(-(aux ** 2))
+        ampl_phys  = numpy.exp(-(aux ** 2)) * self.ant_Efield_V_per_m
 
         # Phase on PHYSICAL grid (0 .. ny_phys)
         dfase      = 2.0 * numpy.pi * self.frequency / constant.c * self.dx * numpy.sin(numpy.deg2rad(self.angle))
@@ -564,7 +564,7 @@ class Basic():
             rho1     = self.antenna.rho1,
             rho2     = self.antenna.rho2,
             freq     = self.frequency,
-            E1       = self.E1,
+            E1       = self.ant_Efield_V_per_m,
         )
         
         _, _ = _build_extended_incident_arrays(self=self, ampl_phys=ampl_phys, phase_phys=phase_phys, TFSF=TFSF)

@@ -9,12 +9,12 @@ from hardware.utils.antenna.pyramidal_horn_farfield_E_U import compute_directivi
 
 ANTENNA_PRESETS = {
     'default': dict(
-        a1=40e-3,     # H-plane aperture width [m]
-        b1=40e-3,     # E-plane aperture height [m]
-        rho1=50e-3,   # E-plane slant length [m]
-        rho2=50e-3,   # H-plane slant length [m]
-        x=-0.1,       # not relevant for basic 
-        E1=3,
+        a1=None,     # parameters are not actually relevant, default uses a Gaussian wavefront.
+        b1=None,     
+        rho1=None,   
+        rho2=None,   
+        x=-0.1,      # needed only for plotting
+        Efield_V_per_m=1,
     ),
     'W7X': dict(
         a1=39.97e-3,  # H-plane aperture width [m]
@@ -22,7 +22,7 @@ ANTENNA_PRESETS = {
         rho1=30e-3, # E-plane slant length [m]
         rho2=60e-3,  # H-plane slant length [m]
         x=-0.1,       # horn x-position [m] (<=0)
-        E1=3,
+        Efield_V_per_m=1,
     )
     # add more named presets here, e.g. 'wide', 'narrow', etc.
 }
