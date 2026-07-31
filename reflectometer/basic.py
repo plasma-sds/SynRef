@@ -19,7 +19,7 @@ import platform
 from reflectometer.conversions import from_unit_to_centi
 import scipy.constants as constant
 import matplotlib.pyplot as plt
-from scipy.interpolate import RectBivariateSpline
+from scipy.interpolate import RectBivariateSpline, RegularGridInterpolator
 from hardware.utils.antenna.pyramidal_farfield_to_fw2d import pyramidal_farfield_to_fw2d
 from hardware.components.antenna import Antenna, ANTENNA_PRESETS
 from hardware.environment import Environment
@@ -150,6 +150,8 @@ class Basic():
         self.ant_Efield_V_per_m  = ANTENNA_PRESETS[antenna]['Efield_V_per_m']
 
         wl = wavelength(self.frequency)
+
+        self.__antenna_plasma_distance(ne_target=1e19, angle=angle, max_range=numpy.abs(self.ant_x) + self.reflection_distance)
 
         self.R1, self.R2 = Antenna.field_region_boundaries(antenna, wl)
         print(f"R1={self.R1}, R2={self.R2}")
@@ -347,10 +349,10 @@ class Basic():
             reflection_distance (str or float): Reflection distance in meters
         """
         if isinstance(reflection_distance, str):
-            self.reflection_distance = (self.x[-1]-self.x[0])
+            self.reflection_distance = 2 * (self.x[-1]-self.x[0]) / numpy.cos(numpy.radians(self.angle))
         else:
             self.reflection_distance = reflection_distance            
-        time = 2*self.reflection_distance / numpy.cos(numpy.radians(self.angle)) / constant.c
+        time = self.reflection_distance / constant.c
         self.__set_timesteps(simulation_time=time*1.05)
             
     def __set_timesteps(self, simulation_time):
@@ -472,6 +474,89 @@ class Basic():
         self.data.ampl_ant  = self._bufs['ampl_ant']
         self.data.fase_ant  = self._bufs['fase_ant']
 
+    def __antenna_plasma_distance(self, ne_target, angle=None, max_range=1.0, n_samples=2000):
+        """
+        Compute the distance from the antenna to a parameterized plasma density layer,
+        accounting for the antenna's propagation angle.
+
+        Parameters
+        ----------
+        n_target : float
+            Target electron density [m^-3] defining the "layer" to find
+            (e.g. the cutoff density n_c = eps0*me*(2*pi*f)^2 / e^2 for a given
+            probing frequency f, or any arbitrary reference density).
+        angle : float, optional
+            Propagation angle of the antenna beam, in radians, measured from
+            the antenna's boresight normal (e.g. from the +x axis).
+            If None, uses self.ant_angle.
+        max_range : float
+            Maximum search distance along the propagation direction [m],
+            i.e. how far into the domain to look for the layer.
+
+
+        Returns
+        -------
+        distance : float
+            Distance from antenna to the located density layer [m].
+            Returns np.nan if the target density is never reached within max_range.
+        (x_hit, z_hit) : tuple of float
+            Coordinates of the located layer crossing point.
+        """
+        # --- Antenna position and look direction ---
+        x0 = self.x[0]
+        y0 = self.antenna_pos
+        n_samples = numpy.int16(max_range // self.dx)
+
+        if angle is None:
+            angle = self.angle  # propagation angle relative to boresight normal
+
+        # Unit propagation vector: assume boresight is along +x, angle tilts in x-z plane
+        dx_dir = numpy.cos(numpy.deg2rad(angle))
+        dy_dir = numpy.sin(numpy.deg2rad(angle))
+
+        nx = int(self.data.nx)
+        ny = int(self.data.ny)
+        x_grid = self.x[0] + numpy.arange(nx) * self.dx
+        y_grid = self.y[0] + numpy.arange(ny) * self.dx  # note: dx used for both axes, matching original code
+
+        # --- Convert ctypes ne buffer [j][i] into a NumPy array ---
+        ne_arr = numpy.ctypeslib.as_array(
+            (ctypes.c_double * nx * ny).from_address(
+                ctypes.cast(self.data.ne, ctypes.POINTER(ctypes.c_double * nx * ny)).contents
+            )
+        ) if False else numpy.array([[self.data.ne[j][i] for i in range(nx)] for j in range(ny)])
+
+        interp = RegularGridInterpolator(
+            (y_grid, x_grid), ne_arr, bounds_error=False, fill_value=numpy.nan
+        )
+
+        # --- Sample line of sight along propagation direction ---
+        s = numpy.linspace(0.0, max_range, n_samples)
+        x_path = x0 + s * dx_dir
+        y_path = y0 + s * dy_dir
+        ne_path = interp(numpy.column_stack([y_path, x_path]))
+
+        # --- Find first crossing of n_target along the path ---
+        valid = ~numpy.isnan(ne_path)
+        if not numpy.any(valid):
+            raise ValueError("Antenna boresight does not cross FW2D simulation space")
+
+        crossing_idx = numpy.where(numpy.diff(numpy.sign(ne_path[valid] - ne_target)) != 0)[0]
+        if len(crossing_idx) == 0:
+            raise ValueError("Antenna boresight does not cross crossing FW2D simulation space")
+
+        i = numpy.where(valid)[0][crossing_idx[0]]
+
+        # Linear interpolation between sample i and i+1 for sub-sample accuracy
+        f = (ne_target - ne_path[i]) / (ne_path[i + 1] - ne_path[i])
+        s_hit = s[i] + f * (s[i + 1] - s[i])
+        x_hit = x0 + s_hit * dx_dir
+        y_hit = y0 + s_hit * dy_dir
+
+        distance = numpy.hypot(x_hit - self.ant_x, y_hit - y0)
+        self.ant_plasma_dist = distance
+        return distance, (x_hit, y_hit)
+
     def __set_ampl_inc_phase_inc(self, antenna):
         """Set the incident amplitude and phase profile for the chosen antenna.
 
@@ -562,9 +647,7 @@ class Basic():
         yante = self.__set_antenna_pos(self.antenna_pos)
 
 
-        if Environment.PLASMA_ANT_DIST >= self.R2:
-            if Environment.PLASMA_ANT_DIST > abs(self.ant_x):
-                raise ValueError(f"Antenna - plasma distance calculation bug, distance is hardcoded should be calculated from ant_x and density field")
+        if self.ant_plasma_dist >= self.R2:
             print("Antenna is in far-field region")
             ampl_phys, phase_phys = pyramidal_farfield_to_fw2d(
                 y        = self.y,
@@ -583,10 +666,10 @@ class Basic():
                 E1       = self.ant_Efield_V_per_m,
             )
 
-        elif self.R1 <= Environment.PLASMA_ANT_DIST < self.R2:
+        elif self.R1 <= self.ant_plasma_dist < self.R2:
             raise ValueError(f"Antenna - plasma distance is in Fresnel region, antenna field is not implemented yet")
         
-        elif Environment.PLASMA_ANT_DIST < self.R1:
+        elif self.ant_plasma_dist < self.R1:
             raise ValueError(f"Antenna - plasma distance is in Reactive near-field region, antenna field is not implemented yet")
         
         _, _ = _build_extended_incident_arrays(self=self, ampl_phys=ampl_phys, phase_phys=phase_phys, TFSF=FW2D_TFSF)

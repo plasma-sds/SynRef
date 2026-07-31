@@ -21,9 +21,9 @@ ANTENNA_PRESETS = {
     'W7X': dict(
         a1=39.97e-3,  # H-plane aperture width [m]
         b1=30.588e-3, # E-plane aperture height [m]
-        rho1=30e-3, # E-plane slant length [m]
-        rho2=60e-3,  # H-plane slant length [m]
-        x=-0.4,       # horn x-position [m] (<=0)
+        rho1=53.994e-3, # E-plane slant length [m]
+        rho2=53.188e-3,  # H-plane slant length [m]
+        x=-0.5,       # horn x-position [m] (<=0)
         Efield_V_per_m=1,
     )
     # add more named presets here, e.g. 'wide', 'narrow', etc.
