@@ -142,7 +142,7 @@ def compare_Etheta_Eplane(a1, b1, rho1, rho2, freq, r, theta_deg_max=60,
     for th in theta_vals:
         y_obs = r * np.sin(th)
         z_obs = r * np.cos(th)
-        Eap, _, xp, yp = pyramidal_horn_near_field_E(
+        _, Eap, xp, yp = pyramidal_horn_near_field_E(
             0.0, y_obs, z_obs, a1, b1, rho1, rho2, freq,
             E1=E1, Nx=Nx, Ny=Ny, pad=pad)
         Etheta_near.append(complex(Eap) * np.cos(th))
@@ -165,7 +165,7 @@ def compare_Etheta_Eplane(a1, b1, rho1, rho2, freq, r, theta_deg_max=60,
 
 
 def run_fixed_dx_sweep(a1, b1, rho1, rho2, freq, R_far,
-                        r_factors=None, Nx_base=256, Ny_base=256,
+                        r_factors=None, theta_deg_max=60, n_theta=8, Nx_base=256, Ny_base=256,
                         pad_base=20.0, Nx_cap=10000, Ny_cap=10000,
             ):
             """
@@ -182,7 +182,7 @@ def run_fixed_dx_sweep(a1, b1, rho1, rho2, freq, R_far,
             rows = []
             for rf in r_factors:
                 r_test_i = rf * R_far
-                y_max_needed = r_test_i * np.sin(np.deg2rad(60))
+                y_max_needed = r_test_i * np.sin(np.deg2rad(theta_deg_max))
                 pad_i = max(pad_base, 1.3 * 2 * y_max_needed / b1)
 
                 Nx_i = int(np.ceil((pad_i * a1) / dx_target))
@@ -190,7 +190,7 @@ def run_fixed_dx_sweep(a1, b1, rho1, rho2, freq, R_far,
                 Nx_i = min(Nx_i + (Nx_i % 2), Nx_cap)
                 Ny_i = min(Ny_i + (Ny_i % 2), Ny_cap)
 
-                df_i = compare_Etheta_Eplane(a1, b1, rho1, rho2, freq, r_test_i, n_theta=8,
+                df_i = compare_Etheta_Eplane(a1, b1, rho1, rho2, freq, r_test_i, theta_deg_max=theta_deg_max, n_theta=n_theta,
                                 Nx=Nx_i, Ny=Ny_i, pad=pad_i)
                 rows.append({
                     "r_factor_x_Rfar": rf, "r_test_m": round(r_test_i, 3),
@@ -207,15 +207,15 @@ def run_fixed_dx_sweep(a1, b1, rho1, rho2, freq, R_far,
 
 
 if __name__ == "__main__":
-    a1, b1 = 0.10, 0.08
-    rho1, rho2 = 0.20, 0.22
-    freq = 10e9
+    a1, b1 = 0.03997, 0.030588
+    rho1, rho2 = 0.053994, 0.053188
+    freq = 20e9
     lam = 3e8 / freq
     D = max(a1, b1)
     R_far = 2 * D ** 2 / lam
     v2 = False
     if v2:
-        r_factors = np.arange(0.5, 6.01, 0.5)
+        r_factors = [0.5, 3, 6] #np.arange(0.5, 6.01, 0.5)
         results = []
         for rf in r_factors:
             r_test_i = rf * R_far
@@ -235,5 +235,6 @@ if __name__ == "__main__":
 
     v3 = True
     if v3:
-        summary = run_fixed_dx_sweep(a1, b1, rho1, rho2, freq, R_far)
+        r_factors = np.arange(0.5, 6.01, 0.5) #[0.5, 3, 6]
+        summary = run_fixed_dx_sweep(a1, b1, rho1, rho2, freq, R_far, r_factors=r_factors, theta_deg_max=30, n_theta=8)
         print(summary.to_string(index=False))
