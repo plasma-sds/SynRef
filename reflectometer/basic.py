@@ -85,8 +85,8 @@ class Basic():
     
     def __init__(self, wavemode='O', solver='basic', frequency=3e10,
                 density='default', b_field='default', x='default', y='default',
-                antenna_pos='default', beam_waist='default', angle=0,
-                reflection_distance='default', antenna='default',
+                antenna_pos='default', beam_waist='default', angle=10,
+                reflection_distance='default', antenna='default', ne_target=1e19
                 ):
         """
         Initialize the Basic FW2D simulation.
@@ -128,6 +128,9 @@ class Basic():
                 linear phase ramp) or 'W7X' (far-field pattern of
                 a pyramidal horn antenna, via Fresnel-integral computation).
                 Default 'default'.
+            ne_target (float): Target electron density in m^-3 for measuring antenna-to-plasma distance. 
+                Used to find the location of a specific density layer along the antenna boresight. 
+                Default 1e19 m^-3.
 
         """
         
@@ -151,7 +154,7 @@ class Basic():
 
         wl = wavelength(self.frequency)
 
-        self.__antenna_plasma_distance(ne_target=1e19, angle=angle, max_range=numpy.abs(self.ant_x) + self.reflection_distance)
+        self.__antenna_plasma_distance(ne_target=ne_target, angle=angle, max_range=numpy.abs(self.ant_x) + self.reflection_distance)
 
         self.R1, self.R2 = Antenna.field_region_boundaries(antenna, wl)
         print(f"R1={self.R1}, R2={self.R2}")
@@ -503,7 +506,7 @@ class Basic():
             Coordinates of the located layer crossing point.
         """
         # --- Antenna position and look direction ---
-        x0 = self.x[0]
+        x0 = self.ant_x
         y0 = self.antenna_pos
         n_samples = numpy.int16(max_range // self.dx)
 
