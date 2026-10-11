@@ -15,16 +15,18 @@ ANTENNA_PRESETS = {
         b1=None,     
         rho1=None,   
         rho2=None,   
-        x=-0.1,      # needed only for plotting
+        x=-0.5,      # needed only for plotting
         Efield_V_per_m=1,
+        antenna_plasma_dist_set=333.6e-3  # default distance to plasma layer [m]
     ),
     'W7X': dict(
         a1=39.97e-3,  # H-plane aperture width [m]
         b1=30.588e-3, # E-plane aperture height [m]
         rho1=53.994e-3, # E-plane slant length [m]
         rho2=53.188e-3,  # H-plane slant length [m]
-        x=-0.5,       # horn x-position [m] (<=0)
+        x=-0.7,       # horn x-position [m] (<=0)
         Efield_V_per_m=1,
+        antenna_plasma_dist_set=333.6e-3  # default distance to plasma layer [m]
     )
     # add more named presets here, e.g. 'wide', 'narrow', etc.
 }
@@ -133,7 +135,7 @@ class Antenna:
             return 0.0, 0.0
 
         elif antenna in ('W7X', 'future development'):
-            D = np.sqrt(ANTENNA_PRESETS[antenna]['a1']**2 + ANTENNA_PRESETS[antenna]['b1']**2)
+            D = np.hypot(ANTENNA_PRESETS[antenna]['a1'], ANTENNA_PRESETS[antenna]['b1'])
 
             R1 = 0.62 * np.sqrt(D**3 / wavelength)
             R2 = 2.0 * D**2 / wavelength

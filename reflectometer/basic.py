@@ -43,8 +43,8 @@ class InputData(ctypes.Structure):                                  #Input data 
         ("nx", ctypes.c_int),                                               # Number of points along x axis [-]
         ("ny", ctypes.c_int),                                               # Number of points along y axis [-] 
         ("dx", ctypes.c_double),                                            # Spatail resolution [-]
-        ("ampl_inc", ctypes.POINTER(ctypes.POINTER(ctypes.c_double))),                                      # Amplitude array of the incident wave [-]
-        ("phase_inc", ctypes.POINTER(ctypes.POINTER(ctypes.c_double))),                                     # Phase array of the incident wave [-]
+        ("ampl_inc", ctypes.POINTER(ctypes.POINTER(ctypes.c_double))),      # Amplitude array of the incident wave [-]
+        ("phase_inc", ctypes.POINTER(ctypes.POINTER(ctypes.c_double))),     # Phase array of the incident wave [-]
         ("b0", ctypes.POINTER(ctypes.POINTER(ctypes.c_double))),            # Magnetic field
         ("ne", ctypes.POINTER(ctypes.POINTER(ctypes.c_double))),            # Plasma density field
         ("ez_final", ctypes.POINTER(ctypes.POINTER(ctypes.c_double))),
@@ -147,14 +147,14 @@ class Basic():
         self.__set_outputdata(solver=solver)
         self.__set_ezfinal_output()
 
-        
+        wl = wavelength(self.frequency)
+
         self.antenna = Antenna.from_antenna_preset(antenna)
         self.ant_x  = ANTENNA_PRESETS[antenna]['x']
         self.ant_Efield_V_per_m  = ANTENNA_PRESETS[antenna]['Efield_V_per_m']
 
-        wl = wavelength(self.frequency)
-
         self.__antenna_plasma_distance(ne_target=ne_target, angle=angle, max_range=numpy.abs(self.ant_x) + self.reflection_distance)
+        self.antenna_plasma_dist_set = ANTENNA_PRESETS[antenna]['antenna_plasma_dist_set']
 
         self.R1, self.R2 = Antenna.field_region_boundaries(antenna, wl)
         print(f"R1={self.R1}, R2={self.R2}")
@@ -557,7 +557,7 @@ class Basic():
         y_hit = y0 + s_hit * dy_dir
 
         distance = numpy.hypot(x_hit - self.ant_x, y_hit - y0)
-        self.ant_plasma_dist = distance
+        self.ant_plasma_dist_calc = distance
         return distance, (x_hit, y_hit)
 
     def __set_ampl_inc_phase_inc(self, antenna):
