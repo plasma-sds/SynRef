@@ -548,7 +548,7 @@ class Basic():
 
         crossing_idx = numpy.where(numpy.diff(numpy.sign(ne_path[valid] - ne_target)) != 0)[0]
         if len(crossing_idx) == 0:
-            raise ValueError("Antenna boresight does not cross crossing FW2D simulation space")
+            raise ValueError("Antenna boresight does not cross FW2D simulation space")
 
         i = numpy.where(valid)[0][crossing_idx[0]]
 
