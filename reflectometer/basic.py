@@ -21,7 +21,8 @@ import scipy.constants as constant
 import matplotlib.pyplot as plt
 from scipy.interpolate import RectBivariateSpline, RegularGridInterpolator
 from hardware.utils.antenna.pyramidal_farfield_to_fw2d import pyramidal_farfield_to_fw2d
-from hardware.components.antenna import Antenna, ANTENNA_PRESETS
+from hardware.utils.antenna.field_propagation.horn_near_field import load_aperture_cached, select_cst_export, aperture_to_fw2d_line
+from hardware.components.antenna import Antenna, ANTENNA_PRESETS, CST_APERTURE_EXPORTS
 from hardware.environment import Environment
 from hardware.utils.utils import wavelength
 from reflectometer.conversions import antenna_pos_to_unit, _build_extended_incident_arrays
@@ -587,16 +588,16 @@ class Basic():
         This sets internal state via `__set_gaussian_wave` or
         `__set_pyramidal_horn_wave` and does not return a value.
         """
-        if antenna == 'default':
+        if not isinstance(antenna, str):
+            raise TypeError(f"Expected str, got {type(antenna).__name__}.")
+        elif antenna == 'default':
             self.__set_gaussian_wave()
+        elif antenna in CST_APERTURE_EXPORTS:
+            self.__set_cst_nearfield_wave(antenna)
         elif antenna in ('W7X','future development'):
             self.__set_pyramidal_horn_wave()
-        elif isinstance(antenna, str):
-            raise ValueError(
-                "Unknown wavesource. Choose 'default' or 'W7X'")
         else:
-            raise TypeError(
-                f"Expected str, got {type(antenna).__name__}.")
+            raise ValueError("Unknown wavesource. Choose 'default' or 'W7X'")
     
     def __set_gaussian_wave(self):
         """
@@ -634,6 +635,43 @@ class Basic():
         phase_phys = (fase + numpy.pi) % (2.0 * numpy.pi) - numpy.pi
 
         _, _ = _build_extended_incident_arrays(self=self, ampl_phys=ampl_phys, phase_phys=phase_phys, TFSF=FW2D_TFSF)
+
+
+    def __set_cst_nearfield_wave(self, antenna):
+        """ampl_inc / phase_inc from a CST aperture export (E and H).
+
+        The aperture field is propagated to the fw2d source column
+        (ez_inc[j][XANT], XANT = TFSF - 1, i.e. one cell before x[0]):
+            angle == 0 -> horn_near_field.propagate_parallel
+            angle != 0 -> horn_near_field.propagate_to_points (tilted horn)
+        Row j of the source corresponds to y = y[0] + j*dx, the same convention
+        as ne[j][i], b0[j][i] and ez_final[j][i]. The C source uses
+        ampl*cos(wt + phase), i.e. the exp(+jwt) phasor convention of CST.
+        """
+        cfg = CST_APERTURE_EXPORTS[antenna]
+        f_cst, (e_file, h_file) = select_cst_export(
+            cfg["exports"], self.frequency, cfg.get("freq_rel_tol", 5e-3))
+        ap = load_aperture_cached(e_file, f_cst, h_file=h_file)
+
+        j_phys = numpy.arange(self.data.ny + 1, dtype=float)
+        y_line = self.y[0] + j_phys * self.dx          # physical rows 0 .. ny
+        x_line = self.x[0] - self.dx                    # source column XANT
+
+        ampl_phys, phase_phys, ez_line, info = aperture_to_fw2d_line(
+            ap, x_line, y_line,
+            ant_x=self.ant_x, ant_y=self.antenna_pos, angle_deg=self.angle,
+            aperture_offset=cfg.get("aperture_offset", 0.0),
+            field_scale=cfg.get("field_scale", "cst"),
+            E_ref=self.ant_Efield_V_per_m)
+
+        self.ez_inc_line = ez_line                       # complex Ez on the source line
+        self.nearfield_info = info
+        print(f"CST near-field source ({f_cst/1e9:.2f} GHz): {info['method']}, "
+            f"angle = {self.angle} deg, |Ez|max = {ampl_phys.max():.3g} V/m, "
+            f"boresight hits source line at y = {info['boresight_hit_y']*1e3:.1f} mm")
+
+        _, _ = _build_extended_incident_arrays(self=self, ampl_phys=ampl_phys,
+                                            phase_phys=phase_phys, TFSF=FW2D_TFSF)
 
 
     def __set_pyramidal_horn_wave(self):

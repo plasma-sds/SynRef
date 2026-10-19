@@ -1,4 +1,6 @@
 """Antenna model as noisy source."""
+import os
+from pathlib import Path
 from typing import Tuple
 from dataclasses import dataclass, field
 from hardware.utils.utils import db_to_lin, wave_number, wavelength, complex_awgn, thermal_noise_rms_power, thermal_noise_rms_voltage, field_to_open_circuit_voltage
@@ -15,7 +17,7 @@ ANTENNA_PRESETS = {
         b1=None,     
         rho1=None,   
         rho2=None,   
-        x=-0.5,      # needed only for plotting
+        x=-0.158,      # [m] needed only for plotting
         Efield_V_per_m=1,
         antenna_plasma_dist_set=333.6e-3  # default distance to plasma layer [m]
     ),
@@ -24,11 +26,26 @@ ANTENNA_PRESETS = {
         b1=30.588e-3, # E-plane aperture height [m]
         rho1=53.994e-3, # E-plane slant length [m]
         rho2=53.188e-3,  # H-plane slant length [m]
-        x=-0.7,       # horn x-position [m] (<=0)
+        x=-0.158,       # horn x-position [m] (<=0)
         Efield_V_per_m=1,
         antenna_plasma_dist_set=333.6e-3  # default distance to plasma layer [m]
     )
     # add more named presets here, e.g. 'wide', 'narrow', etc.
+}
+REPO_ROOT = Path(__file__).resolve().parents[2]       
+EXPORT_DIR = REPO_ROOT / "hardware/utils/antenna/field_exports/W7X_PCR"
+
+CST_APERTURE_EXPORTS = {
+    "W7X": {
+        "exports": {
+            29e9: (os.path.join(EXPORT_DIR, "output_E_52.txt"),
+                   os.path.join(EXPORT_DIR, "output_H_52.txt")),
+            # 26e9: (..._E_..., ..._H_...),   # add further frequencies here 
+        },
+        "freq_rel_tol": 5e-3,         # max |f_fw2d - f_CST| / f_fw2d
+        "aperture_offset": 0.042,     # [m] from antenna throat to CST aperture plane (z=52 mm). 0,0,0 is at horn throat in 2026-07-31_W7C_PCR_2.2_near_far_fieldtest_v5
+        "field_scale": "cst",         # "cst" | "aperture_peak" | "line_peak" | float
+    },
 }
 
 @dataclass
