@@ -122,15 +122,16 @@ class Basic():
                 to the reflecting plasma layer, used to size the simulation
                 time window. Pass 'default' to auto-estimate it, or a float
                 to set it explicitly.
-            antenna (str): According to selected antenna type antenna parameters are called
+            antenna (str): According to selected antenna type, antenna parameters are called
                 and the antennas field model is used to compute ampl_inc and
                 phase_inc. One of 'default' (analytic Gaussian beam with
                 linear phase ramp) or 'W7X' (far-field pattern of
                 a pyramidal horn antenna, via Fresnel-integral computation).
                 Default 'default'.
-            ne_target (float): Target electron density in m^-3 for measuring antenna-to-plasma distance. 
+            ne_target (float): Currently used only for beam direction check. Antenna plasma distance is 
+                set for each diagnostics setup. (Target electron density in m^-3 for measuring antenna-to-plasma distance. 
                 Used to find the location of a specific density layer along the antenna boresight. 
-                Default 1e19 m^-3.
+                Default 1e19 m^-3.)
 
         """
         
